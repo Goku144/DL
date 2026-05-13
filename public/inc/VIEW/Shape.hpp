@@ -28,6 +28,7 @@ private:
 public:
 
   Shape(int dims[VIEW::MAX_RANK], int rank = 0, VIEW::DType dtype = VIEW::CHAR);
+  Shape();
   ~Shape();
 
   int getMaxRank() const;
@@ -37,6 +38,8 @@ public:
   int getStride(int index) const;
 
   VIEW::DType getDType() const;
+
+  void setShape(int dims[VIEW::MAX_RANK], int rank, VIEW::DType dtype = VIEW::CHAR);
 
   void info() const;
 };

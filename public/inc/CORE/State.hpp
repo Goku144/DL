@@ -38,7 +38,8 @@ namespace CORE
   
   void printState(State level, const char *file, int line, const char *fmt, ...);
 
-  inline size_t aligne(size_t& x, Aligne aligneTo);
+  inline size_t aligne(size_t x, CORE::Aligne aligneTo) 
+  {return (x + uintptr_t(aligneTo - 1)) & ~uintptr_t(aligneTo - 1);}
 
   #define ALIGNE(x, aligneTo) aligne(x, aligneTo)
 }

@@ -4,6 +4,8 @@
 #include "HANDLER/Cpu.hpp"
 #include "HANDLER/Cuda.hpp"
 
+#include "VIEW/Shape.hpp"
+
 namespace VIEW
 {
 
@@ -21,6 +23,7 @@ private:
 public:
   Math(HANDLER::Cpu& handler, VIEW::Shape& layout);
   Math(HANDLER::Cuda& handler, VIEW::Shape& layout);
+  Math();
   ~Math();
 
   void bind(HANDLER::Cpu& handler, VIEW::Shape& layout);
@@ -28,6 +31,8 @@ public:
   void bind(HANDLER::Cuda& handler, VIEW::Shape& layout);
 
   void unbind();
+
+  void info() const;
 };
   
 }

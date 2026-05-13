@@ -29,7 +29,7 @@ public:
   void copyToHost();
 #endif
 };
-  
+
 }
 
 #endif /* HANDLER_CPU_HPP */
