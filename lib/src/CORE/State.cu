@@ -12,6 +12,7 @@ void CORE::printState(State level, const char *file, int line, const char *fmt, 
     case CORE::WARN: fprintf(stderr, "\033[1;38;5;220m[ WARNING ]\033[0m "); break;
     case CORE::FATAL: fprintf(stderr, "\033[1;38;5;196m[  FATAL  ]\033[0m "); break;
   }
+  
   fprintf(stderr, "\033[90m%s:%d:\033[0m ", file, line);
   
   va_list args;
@@ -22,4 +23,9 @@ void CORE::printState(State level, const char *file, int line, const char *fmt, 
   fprintf(stderr, "\n");
 
   if (level == State::FATAL) exit(EXIT_FAILURE);
+}
+
+inline size_t CORE::aligne(size_t& x, CORE::Aligne aligneTo) 
+{
+  return (x + uintptr_t(aligneTo - 1)) & ~uintptr_t(aligneTo - 1);
 }

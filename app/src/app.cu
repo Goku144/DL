@@ -1,7 +1,8 @@
-#include "CORE/State.hpp"
+#include "VIEW/Shape.hpp"
 
 int main()
 {
-  CORE::logFatal("%d", 5);
+  VIEW::Shape layout((int []) {1,4,4,3}, 4, VIEW::FLOAT);
+  layout.info();
   return 0;
 }

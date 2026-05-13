@@ -1,12 +1,12 @@
-#if !defined(HANDLER_CPU_HPP)
-#define HANDLER_CPU_HPP
+#if !defined(HANDLER_CUDA_HPP)
+#define HANDLER_CUDA_HPP
 
 #include "CORE/State.hpp"
 
 namespace HANDLER
 {
 
-class __align__(CORE::ALIGNE_TO_256) Cpu
+class __align__(CORE::ALIGNE_TO_256) Cuda
 {
 private:
   void *data = NULL;
@@ -14,8 +14,8 @@ private:
   size_t capacity = 0;
 
 public:
-  Cpu(size_t capacity = CORE::MEMORY_1_GB);
-  ~Cpu();
+  Cuda(size_t capacity = CORE::MEMORY_1_GB);
+  ~Cuda();
 
   size_t getOffset();
 
@@ -25,11 +25,9 @@ public:
 
   void reset();
 
-#if (CUDA_CPU == 1)
-  void copyToHost();
-#endif
+  void copyToDevice();
 };
   
 }
 
-#endif /* HANDLER_CPU_HPP */
+#endif /* HANDLER_CUDA_HPP */

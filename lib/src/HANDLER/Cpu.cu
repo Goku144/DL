@@ -1,5 +1,5 @@
-#include "CORE/State.hpp"
 #include "HANDLER/Cpu.hpp"
+#include "VIEW/Math.hpp"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,7 +11,7 @@
 HANDLER::Cpu::Cpu(size_t capacity)
 {
 #if (CUDA_CPU == 0)
-  this->data = aligned_alloc(ALIGNE_TO, capacity);
+  this->data = aligned_alloc(CORE::ALIGNE_TO_256, capacity);
   if(this->data == NULL) CORE::logFatal("Cpu Faild to allocate MEMORY");
 #else
   if(cudaMallocHost(&this->data, capacity) != cudaSuccess)
@@ -30,3 +30,31 @@ HANDLER::Cpu::~Cpu()
 #endif
 }
 
+size_t HANDLER::Cpu::getOffset()
+{
+  return this->offset;
+}
+
+size_t HANDLER::Cpu::getCapacity()
+{
+  return this->capacity;
+}
+
+void HANDLER::Cpu::allocate(size_t& offset, size_t capacity)
+{
+  capacity = CORE::ALIGNE(capacity, CORE::ALIGNE_TO_256);
+
+  if(capacity > this->capacity - this->offset)
+  {
+    CORE::logWarn("Cpu Arena Handler Out Of Memory");
+    return;
+  }
+
+  offset = this->offset;
+  this->offset += capacity;
+}
+
+void HANDLER::Cpu::reset()
+{
+  this->offset = 0;
+}
