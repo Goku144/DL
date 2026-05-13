@@ -6,6 +6,7 @@ from git import Repo
 
 DATASET_REPO = "https://github.com/rasbt/mnist-pngs"
 TARGET_DIR = Path(__file__).resolve().parents[1]
+META_DIR = TARGET_DIR / "meta"
 CLONE_DIR = TARGET_DIR / "mnist-pngs"
 
 
@@ -23,11 +24,13 @@ def main() -> None:
     if CLONE_DIR.exists():
         shutil.rmtree(CLONE_DIR)
 
+    META_DIR.mkdir(exist_ok=True)
+
     try:
         Repo.clone_from(DATASET_REPO, CLONE_DIR)
 
         for name in ("train", "test", "train.csv", "test.csv"):
-            replace_path(CLONE_DIR / name, TARGET_DIR / name)
+            replace_path(CLONE_DIR / name, META_DIR / name)
     finally:
         if CLONE_DIR.exists():
             shutil.rmtree(CLONE_DIR)
