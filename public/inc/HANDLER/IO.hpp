@@ -1,33 +1,44 @@
-#if !defined(FILE_CUDA_HPP)
-#define FILE_CUDA_HPP
+#if !defined(IO_CUDA_HPP)
+#define IO_CUDA_HPP
 
-#include "CORE/State.hpp"
-
-namespace VIEW
-{
-  class Math;
-}
+#include "VIEW/Math.hpp"
 
 namespace HANDLER
 {
 
-class __align__(CORE::ALIGNE_TO_256) File
+class __align__(CORE::ALIGNE_TO_256) IO
 {
 private:
-  /* var */
+  HANDLER::Cpu *handleCpu = NULL;
+  HANDLER::Cuda *handleGpu = NULL;
 public:
-  File(/* args */);
-  ~File();
+  IO(HANDLER::Cpu& handleCpu, HANDLER::Cuda& HandleGpu);
+  IO();
+  ~IO();
 
-  CORE::State writeFile(const char *path, const VIEW::Math& src);
+  void setHandler(HANDLER::Cpu& handleCpu, HANDLER::Cuda& HandleGpu);
 
-  CORE::State readFile(VIEW::Math& dst, const char *path);
+  void setHandler(HANDLER::Cpu& handleCpu);
+
+  void setHandler(HANDLER::Cuda& HandleGpu);
+
+  CORE::State writeIO(const char *path, const VIEW::Math& src);
+
+  CORE::State readIO(VIEW::Math& dst, const char *path);
 
   CORE::State readCsv(VIEW::Math& filepath, VIEW::Math& label, const char *path);
 
   CORE::State readImage(VIEW::Math& dst, const char *path);
+
+  void copyToHost(VIEW::Math& dstCpu, VIEW::Math& srcGpu);
+
+  void copyToDevice(VIEW::Math& dstGpu, VIEW::Math& srcCpu);
+
+  void copyHandlerToHost();
+
+  void copyHandlerToDevice();
 };
-  
+
 }
 
-#endif /* FILE_CUDA_HPP */
+#endif /* IO_CUDA_HPP */

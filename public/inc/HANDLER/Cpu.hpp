@@ -24,10 +24,6 @@ public:
   void allocate(size_t& offset, size_t capacity);
 
   void reset();
-
-#if (CUDA_CPU == 1)
-  void copyToHost();
-#endif
 };
 
 }
