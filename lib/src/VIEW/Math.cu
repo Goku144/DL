@@ -1,19 +1,8 @@
 #include "VIEW/Math.hpp"
 
-VIEW::Math::Math(HANDLER::Cpu& handler, VIEW::Shape& layout)
+VIEW::Math::Math( VIEW::Shape& layout)
 {
-  this->count = layout.getDim(0) * layout.getStride(0);
-  this->bytes = CORE::ALIGNE(this->count * layout.getDType(), CORE::ALIGNE_TO_256);
-  handler.allocate(this->cpuOffset, this->bytes);
-  this->layout = &layout;
-}
-
-VIEW::Math::Math(HANDLER::Cuda& handler, VIEW::Shape& layout)
-{
-  this->count = layout.getDim(0) * layout.getStride(0);
-  this->bytes = CORE::ALIGNE(this->count * layout.getDType(), CORE::ALIGNE_TO_256);
-  handler.allocate(this->gpuOffset, this->bytes);
-  this->layout = &layout;
+  this->layout = layout;
 }
 
 VIEW::Math::Math()
@@ -22,36 +11,91 @@ VIEW::Math::Math()
 VIEW::Math::~Math()
 {}
 
-void VIEW::Math::bind(HANDLER::Cpu& handler, VIEW::Shape& layout)
+void *VIEW::Math::getCpuPtr() const
 {
-  this->count = layout.getDim(0) * layout.getStride(0);
-  this->bytes = CORE::ALIGNE(this->count * layout.getDType(), CORE::ALIGNE_TO_256);
-  handler.allocate(this->cpuOffset, this->bytes);
-  this->layout = &layout;
+  return this->cpuPtr;
 }
 
-void VIEW::Math::bind(HANDLER::Cuda& handler, VIEW::Shape& layout)
+void *VIEW::Math::getGpuPtr() const
 {
-  this->count = layout.getDim(0) * layout.getStride(0);
-  this->bytes = CORE::ALIGNE(this->count * layout.getDType(), CORE::ALIGNE_TO_256);
-  handler.allocate(this->gpuOffset, this->bytes);
-  this->layout = &layout;
+  return this->gpuPtr;
 }
 
-void VIEW::Math::unbind()
+size_t VIEW::Math::getCpuOffset() const
 {
-  this->cpuOffset = 0;
-  this->gpuOffset = 0;
-  this->bytes = 0;
-  this->count = 0;
-  this->layout = NULL;
+  return this->cpuOffset;
 }
 
-void VIEW::Math::info() const
+size_t VIEW::Math::getGpuOffset() const
 {
-  CORE::logInfo("Cpu Offset: 0x%x", this->cpuOffset);
-  CORE::logInfo("Gpu Offset: 0x%x", this->gpuOffset);
-  CORE::logInfo("bytes: %zu", this->bytes);
-  CORE::logInfo("elemnts: %zu", this->count);
-  this->layout->info();
+  return this->gpuOffset;
+}
+
+size_t VIEW::Math::getBytes() const
+{
+  return this->bytes;
+}
+  
+size_t VIEW::Math::getCount() const
+{
+  return this->count;
+}
+
+VIEW::Shape& VIEW::Math::getLayout() 
+{
+  return this->layout;
+}
+
+void VIEW::Math::setCpuOffset(size_t cpuOffset)
+{
+  this->cpuOffset = cpuOffset;
+}
+
+void VIEW::Math::setGpuOffset(size_t gpuOffset)
+{
+  this->gpuOffset = gpuOffset;
+}
+
+void VIEW::Math::setCpuPtr(void *cpuPtr)
+{
+  this->cpuPtr = cpuPtr;
+}
+
+void VIEW::Math::setGpuPtr(void *gpuPtr)
+{
+  this->gpuPtr = gpuPtr;
+}
+
+void VIEW::Math::setBytes(size_t bytes)
+{
+  this->bytes = bytes;
+}
+
+void VIEW::Math::setCount(size_t count)
+{
+  this->count = count;
+}
+
+void VIEW::Math::setLayout(VIEW::Shape& layout)
+{
+  this->layout = layout;
+}
+
+void *VIEW::Math::getCpuDataAt(int i, int j, int k, int l)
+{
+  return (uint8_t *)this->cpuPtr + this->layout.getSuperPosition(i, j, k, l);
+}
+
+void *VIEW::Math::getGpuDataAt(int i, int j, int k, int l)
+{
+  return (uint8_t *)this->gpuPtr + this->layout.getSuperPosition(i, j, k, l);
+}
+
+void VIEW::Math::info(const char* file, int line) const
+{
+  CORE::logInfo(file, line, "Cpu Offset: 0x%x", this->cpuOffset);
+  CORE::logInfo(file, line, "Gpu Offset: 0x%x", this->gpuOffset);
+  CORE::logInfo(file, line, "bytes: %zu", this->bytes);
+  CORE::logInfo(file, line, "elemnts: %zu", this->count);
+  this->layout.info(file, line);
 }

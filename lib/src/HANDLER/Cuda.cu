@@ -1,4 +1,5 @@
 #include "HANDLER/Cuda.hpp"
+#include "HANDLER/IO.hpp"
 #include "VIEW/Math.hpp"
 
 #include <stdio.h>
@@ -8,18 +9,24 @@
 #include <cuda_runtime_api.h>
 #endif
 
-HANDLER::Cuda::Cuda(size_t capacity)
+HANDLER::Cuda::Cuda(size_t capacity, const char* file, int line)
 {
-  if(cudaMalloc(&this->data, capacity) != cudaSuccess) CORE::logFatal("Cuda Faild to allocate MEMORY");
+  if(cudaMalloc(&this->data, capacity) != cudaSuccess) 
+    CORE::logFatal(file, line, "Cuda Faild to allocate MEMORY");
   if(cudaMallocHost(&this->data, capacity) != cudaSuccess)
-    CORE::logFatal("Cuda Faild to allocate GPU MEMORY");
+    CORE::logFatal(file, line, "Cuda Faild to allocate GPU MEMORY");
   this->capacity = capacity;
 }
 
 HANDLER::Cuda::~Cuda()
 {
   if(cudaFree(this->data) != cudaSuccess)
-    CORE::logWarn("Cuda Faild to free GPU MEMORY");
+    CORE::logWarn(__FILE__, __LINE__,"Cuda Faild to free GPU MEMORY");
+}
+
+void *HANDLER::Cuda::getData()
+{
+  return this->data;
 }
 
 size_t HANDLER::Cuda::getOffset()
@@ -32,18 +39,20 @@ size_t HANDLER::Cuda::getCapacity()
   return this->capacity;
 }
 
-void HANDLER::Cuda::allocate(size_t& offset, size_t capacity)
+
+CORE::errIO HANDLER::Cuda::allocate(void **gpuPtr, size_t& offset, size_t capacity)
 {
+  if(gpuPtr == NULL) return CORE::ioErrNull;
+
   capacity = CORE::ALIGNE(capacity, CORE::ALIGNE_TO_256);
 
-  if(capacity > this->capacity - this->offset)
-  {
-    CORE::logWarn("Cuda Arena Handler Out Of Memory");
-    return;
-  }
-
+  if(capacity > this->capacity - this->offset) 
+    return CORE::ioErrOutOfBound;
+    
+  *gpuPtr = (uint8_t *) this->data + offset;
   offset = this->offset;
   this->offset += capacity;
+  return CORE::ioSuccess;
 }
 
 void HANDLER::Cuda::reset()

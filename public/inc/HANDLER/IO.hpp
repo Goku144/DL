@@ -6,37 +6,71 @@
 namespace HANDLER
 {
 
+#define IO_DEFAULT_BUFFER_SIZE 4096
+
 class __align__(CORE::ALIGNE_TO_256) IO
 {
 private:
   HANDLER::Cpu *handleCpu = NULL;
   HANDLER::Cuda *handleGpu = NULL;
+  CORE::errIO err = CORE::ioSuccess;
+
 public:
-  IO(HANDLER::Cpu& handleCpu, HANDLER::Cuda& HandleGpu);
-  IO();
+  IO(HANDLER::Cpu& handleCpu, HANDLER::Cuda& handleGpu);
+  IO(HANDLER::Cpu& handleCpu);
+  IO(HANDLER::Cuda& handleCpu);
   ~IO();
 
-  void setHandler(HANDLER::Cpu& handleCpu, HANDLER::Cuda& HandleGpu);
+  CORE::errIO getErr();
+  CORE::errIO peekErr() const;
+  void clearErr();
+
+  void setHandler(HANDLER::Cpu& handleCpu, HANDLER::Cuda& handleGpu);
 
   void setHandler(HANDLER::Cpu& handleCpu);
 
   void setHandler(HANDLER::Cuda& HandleGpu);
 
-  CORE::State writeIO(const char *path, const VIEW::Math& src);
+  void bindCpu(VIEW::Math& math);
 
-  CORE::State readIO(VIEW::Math& dst, const char *path);
+  void bindGpu(VIEW::Math& math);
 
-  CORE::State readCsv(VIEW::Math& filepath, VIEW::Math& label, const char *path);
+  void bind(VIEW::Math& math);
 
-  CORE::State readImage(VIEW::Math& dst, const char *path);
+  void unbind(VIEW::Math& math);
 
-  void copyToHost(VIEW::Math& dstCpu, VIEW::Math& srcGpu);
+  // DONT FORGET DATA TYPE
+  void copyHostToHost(VIEW::Math& dstMath, VIEW::Math& srcMath);
 
-  void copyToDevice(VIEW::Math& dstGpu, VIEW::Math& srcCpu);
+  void copyHostToHost(VIEW::Math& dstMath, void *src, size_t n, VIEW::DType dtype = VIEW::CHAR);
 
-  void copyHandlerToHost();
+  void copyHostToHost(void *dst, VIEW::Math& srcMath, size_t n, VIEW::DType dtype = VIEW::CHAR);
 
-  void copyHandlerToDevice();
+  void copyHostToDevice(VIEW::Math& math);
+
+  void copyHostToDevice(VIEW::Math& dstMath, VIEW::Math& srcMath);
+
+  void copyHostToDevice(VIEW::Math& dstMath, void *src, size_t n, VIEW::DType dtype = VIEW::CHAR);
+  
+  void copyHostToDevice(void *dst, VIEW::Math& srcMath, size_t n, VIEW::DType dtype = VIEW::CHAR);
+
+  void copyDeviceToHost(VIEW::Math& math);
+
+  void copyDeviceToHost(VIEW::Math& dstMath, VIEW::Math& srcMath);
+
+  void copyDeviceToHost(VIEW::Math& dstMath, void *src, size_t n, VIEW::DType dtype = VIEW::CHAR);
+
+  void copyDeviceToHost(void *dst, VIEW::Math& srcMath, size_t n, VIEW::DType dtype = VIEW::CHAR);
+
+  void copyDeviceToDevice(VIEW::Math& dstMath, VIEW::Math& srcMath);
+
+  void copyDeviceToDevice(VIEW::Math& dstMath, void *src, size_t n, VIEW::DType dtype = VIEW::CHAR);
+
+  void copyDeviceToDevice(void *dst, VIEW::Math& srcMath, size_t n, VIEW::DType dtype = VIEW::CHAR);
+
+  void printData(VIEW::Math& math, const char* file = __FILE__, int line = __LINE__) const;
+
+  void info(CORE::State level = CORE::WARN, const char *file = __FILE__, int line = __LINE__) const;
 };
 
 }

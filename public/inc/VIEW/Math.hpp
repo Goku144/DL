@@ -14,25 +14,39 @@ class Shape;
 class __align__(CORE::ALIGNE_TO_256) Math
 {
 private:
+  void *cpuPtr = NULL;
+  void *gpuPtr = NULL;
   size_t cpuOffset = 0;
   size_t gpuOffset = 0;
   size_t bytes = 0;
   size_t count = 0;
-  Shape *layout = NULL;
+  Shape layout;
 
 public:
-  Math(HANDLER::Cpu& handler, VIEW::Shape& layout);
-  Math(HANDLER::Cuda& handler, VIEW::Shape& layout);
+  Math(VIEW::Shape& layout);
   Math();
   ~Math();
 
-  void bind(HANDLER::Cpu& handler, VIEW::Shape& layout);
+  void *getCpuPtr() const;
+  void *getGpuPtr() const;
+  size_t getCpuOffset() const;
+  size_t getGpuOffset() const;
+  size_t getBytes() const;
+  size_t getCount() const;
+  VIEW::Shape& getLayout();
 
-  void bind(HANDLER::Cuda& handler, VIEW::Shape& layout);
+  void setCpuPtr(void *cpuPtr);
+  void setGpuPtr(void *gpuPtr);
+  void setCpuOffset(size_t cpuOffset);
+  void setGpuOffset(size_t gpuOffset);
+  void setBytes(size_t bytes);
+  void setCount(size_t count);
+  void setLayout(VIEW::Shape& layout);
 
-  void unbind();
+  void *getCpuDataAt(int i = 0, int j = 0, int k = 0, int l = 0);
+  void *getGpuDataAt(int i = 0, int j = 0, int k = 0, int l = 0);
 
-  void info() const;
+  void info(const char* file = __FILE__, int line = __LINE__) const;
 };
   
 }

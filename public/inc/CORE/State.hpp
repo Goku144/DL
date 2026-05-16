@@ -25,16 +25,34 @@ namespace CORE
     MEMORY_1_GB = 2 * MEMORY_512_MB,
   };
 
-    enum State
+  enum errIO
+  {
+    ioSuccess = 0x00,
+    ioErrCopyToHost = 0x01 << 1,
+    ioErrCopyToDevice = 0x01 << 2,
+    ioErrReadBytes = 0x01 << 3,
+    ioErrWriteBytes = 0x01 << 4,
+    ioErrCreadCsv = 0x01 << 5,
+    ioErrReadImg = 0x01 << 6,
+    ioErrOutOfMemory = 0x01 << 7,
+    ioErrOutOfBound = 0x01 << 8,
+    ioErrNull = 0x01 << 9,
+    ioErrInvalidValue = 0x01 << 10,
+    ioErrInvalidState = 0x01 << 11,
+    ioErrOpen = 0x01 << 12,
+    ioErrClose = 0x01 << 13,
+  };
+
+  enum State
   {
     INFO = 0,
     WARN,
     FATAL,
   };
 
-  #define logInfo(x, ...) printState(CORE::INFO, __FILE__, __LINE__, x, ##__VA_ARGS__);
-  #define logWarn(x, ...) printState(CORE::WARN, __FILE__, __LINE__, x, ##__VA_ARGS__);
-  #define logFatal(x, ...) printState(CORE::FATAL, __FILE__, __LINE__, x, ##__VA_ARGS__);
+  #define logInfo(file, line, x, ...) printState(CORE::INFO, file, line, x, ##__VA_ARGS__);
+  #define logWarn(file, line, x, ...) printState(CORE::WARN, file, line, x, ##__VA_ARGS__);
+  #define logFatal(file, line, x, ...) printState(CORE::FATAL, file, line, x, ##__VA_ARGS__);
   
   void printState(State level, const char *file, int line, const char *fmt, ...);
 
