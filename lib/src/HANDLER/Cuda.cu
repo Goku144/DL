@@ -47,8 +47,8 @@ CORE::errIO HANDLER::Cuda::allocate(void **gpuPtr, size_t& offset, size_t capaci
   if(capacity > this->capacity - this->offset) 
     return CORE::ioErrOutOfBound;
     
-  *gpuPtr = (uint8_t *) this->data + offset;
   offset = this->offset;
+  *gpuPtr = (uint8_t *) this->data + offset;
   this->offset += capacity;
   return CORE::ioSuccess;
 }

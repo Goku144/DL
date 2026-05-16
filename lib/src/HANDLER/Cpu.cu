@@ -55,8 +55,8 @@ CORE::errIO HANDLER::Cpu::allocate(void **cpuPtr, size_t& offset, size_t capacit
   if(capacity > this->capacity - this->offset)
     return CORE::ioErrOutOfBound;
 
-  *cpuPtr = (uint8_t *) this->data + offset;
   offset = this->offset;
+  *cpuPtr = (uint8_t *) this->data + offset;
   this->offset += capacity;
   return CORE::ioSuccess;
 }

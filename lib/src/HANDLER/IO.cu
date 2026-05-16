@@ -183,6 +183,7 @@ void HANDLER::IO::bindCpu(VIEW::Math& math)
   void *cpuPtr;
   size_t offset = 0;
   if((this->err = handleCpu->allocate(&cpuPtr, offset, math.getBytes())) != CORE::ioSuccess) return;
+  math.setCpuOffset(offset);
   math.setCpuPtr(cpuPtr);
 }
 
@@ -194,6 +195,7 @@ void HANDLER::IO::bindGpu(VIEW::Math& math)
   void *gpuPtr;
   size_t offset = 0;
   if((this->err = handleGpu->allocate(&gpuPtr, offset, math.getBytes())) != CORE::ioSuccess) return;
+  math.setGpuOffset(offset);
   math.setGpuPtr(gpuPtr);
 }
 
@@ -203,7 +205,7 @@ void HANDLER::IO::bind(VIEW::Math& math)
   this->bindGpu(math);
 }
 
-void unbind(VIEW::Math& math)
+void HANDLER::IO::unbind(VIEW::Math& math)
 {
   math.setBytes(0);
   math.setCount(0);
