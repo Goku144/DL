@@ -211,7 +211,8 @@ void unbind(VIEW::Math& math)
   math.setGpuOffset(0);
   math.setCpuPtr(NULL);
   math.setGpuPtr(NULL);
-  math.getLayout().setShape((int[]){0,0,0,0});
+  int dims[VIEW::MAX_RANK] = {0, 0, 0, 0};
+  math.getLayout().setShape(dims);
 }
 
 void HANDLER::IO::copyHostToHost(VIEW::Math& dstMath, VIEW::Math& srcMath)
