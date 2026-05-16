@@ -4,24 +4,36 @@
 #include <cuda_runtime_api.h>
 #include <stdio.h>
 
-static void bindCpuTracked(HANDLER::IO& io, HANDLER::Cpu& cpu, VIEW::Math& math)
+static void bindCpuForTest(HANDLER::Cpu& cpu, VIEW::Math& math)
 {
+  VIEW::Shape layout = math.getLayout();
+  math.setCount(layout.getDim(0) * layout.getStride(0));
+  math.setBytes(CORE::ALIGNE(math.getCount() * layout.getDType(), CORE::ALIGNE_TO_256));
+
+  void *cpuPtr = NULL;
   size_t offset = cpu.getOffset();
-  io.bindCpu(math);
+  cpu.allocate(&cpuPtr, offset, math.getBytes());
+  math.setCpuPtr(cpuPtr);
   math.setCpuOffset(offset);
 }
 
-static void bindGpuTracked(HANDLER::IO& io, HANDLER::Cuda& gpu, VIEW::Math& math)
+static void bindGpuForTest(HANDLER::Cuda& gpu, VIEW::Math& math)
 {
+  VIEW::Shape layout = math.getLayout();
+  math.setCount(layout.getDim(0) * layout.getStride(0));
+  math.setBytes(CORE::ALIGNE(math.getCount() * layout.getDType(), CORE::ALIGNE_TO_256));
+
+  void *gpuPtr = NULL;
   size_t offset = gpu.getOffset();
-  io.bindGpu(math);
+  gpu.allocate(&gpuPtr, offset, math.getBytes());
+  math.setGpuPtr(gpuPtr);
   math.setGpuOffset(offset);
 }
 
-static void bindTracked(HANDLER::IO& io, HANDLER::Cpu& cpu, HANDLER::Cuda& gpu, VIEW::Math& math)
+static void bindForTest(HANDLER::Cpu& cpu, HANDLER::Cuda& gpu, VIEW::Math& math)
 {
-  bindCpuTracked(io, cpu, math);
-  bindGpuTracked(io, gpu, math);
+  bindCpuForTest(cpu, math);
+  bindGpuForTest(gpu, math);
 }
 
 static void logStep(HANDLER::IO& io, const char *name)
@@ -70,12 +82,12 @@ int main()
   cudaMalloc(&deviceOutput, sizeof(hostInput));
   cudaMemcpy(deviceInput, hostInput, sizeof(hostInput), cudaMemcpyHostToDevice);
 
-  bindCpuTracked(io, cpu, hostSrc);
-  bindCpuTracked(io, cpu, hostDst);
-  bindGpuTracked(io, gpu, deviceSrc);
-  bindGpuTracked(io, gpu, deviceDst);
-  bindTracked(io, cpu, gpu, sharedSrc);
-  bindTracked(io, cpu, gpu, sharedDst);
+  bindCpuForTest(cpu, hostSrc);
+  bindCpuForTest(cpu, hostDst);
+  bindGpuForTest(gpu, deviceSrc);
+  bindGpuForTest(gpu, deviceDst);
+  bindForTest(cpu, gpu, sharedSrc);
+  bindForTest(cpu, gpu, sharedDst);
   logStep(io, "bind cpu, gpu, and shared math");
 
   io.copyHostToHost(hostSrc, hostInput, 8, VIEW::FLOAT);

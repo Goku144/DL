@@ -13,8 +13,6 @@ HANDLER::Cuda::Cuda(size_t capacity, const char* file, int line)
 {
   if(cudaMalloc(&this->data, capacity) != cudaSuccess) 
     CORE::logFatal(file, line, "Cuda Faild to allocate MEMORY");
-  if(cudaMallocHost(&this->data, capacity) != cudaSuccess)
-    CORE::logFatal(file, line, "Cuda Faild to allocate GPU MEMORY");
   this->capacity = capacity;
 }
 

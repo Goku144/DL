@@ -26,7 +26,7 @@ HANDLER::Cpu::~Cpu()
 #if (CUDA_CPU == 0)
   free(this->data);
 #else
-  if(cudaFree(this->data) != cudaSuccess)
+  if(cudaFreeHost(this->data) != cudaSuccess)
     CORE::logWarn(__FILE__, __LINE__, "Cpu Faild to free pinned MEMORY");
 #endif
 }
