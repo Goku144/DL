@@ -1,12 +1,15 @@
 #if !defined(CORE_STATE_HPP)
 #define CORE_STATE_HPP
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace CORE
 {
+  /** @brief Select CPU allocation backend: 0 uses aligned_alloc, 1 uses cudaMallocHost. */
   #define CUDA_CPU 0
 
+  /** @brief Supported byte alignment constants. */
   enum Aligne
   {
     ALIGNE_TO_32 = 32,
@@ -15,6 +18,7 @@ namespace CORE
     ALIGNE_TO_256 = 256,
   };
 
+  /** @brief Common arena sizes used by handlers and workspace. */
   enum MemorySize
   {
     MEMORY_32_MB = 32 * 1024 * 1024,
@@ -25,6 +29,7 @@ namespace CORE
     MEMORY_1_GB = 2 * MEMORY_512_MB,
   };
 
+  /** @brief Error codes stored by HANDLER::IO and returned by Cpu/Cuda allocation. */
   enum errIO
   {
     ioSuccess = 0x00,
@@ -37,6 +42,7 @@ namespace CORE
     ioErrInvalidState = 0x01 << 11,
   };
 
+  /** @brief Error codes stored by HANDLER::File. */
   enum errFile
   {
     fileSuccess = 0x00,
@@ -51,6 +57,7 @@ namespace CORE
     fileErrIO = 0x01 << 9,
   };
 
+  /** @brief Error codes stored by HANDLER::Workspace. */
   enum errWorkspace
   {
     workspaceSuccess = 0x00,
@@ -67,6 +74,7 @@ namespace CORE
     workspaceErrCudnnSetStream = 0x01 << 11,
   };
 
+  /** @brief Log severity. */
   enum State
   {
     INFO = 0,
@@ -78,8 +86,10 @@ namespace CORE
   #define logWarn(file, line, x, ...) printState(CORE::WARN, file, line, x, ##__VA_ARGS__);
   #define logFatal(file, line, x, ...) printState(CORE::FATAL, file, line, x, ##__VA_ARGS__);
   
+  /** @brief Print a formatted project log message. @param level Log severity. @param file Source file name. @param line Source line. @param fmt printf-style format string. */
   void printState(State level, const char *file, int line, const char *fmt, ...);
 
+  /** @brief Align a byte count upward. @param x Input byte count. @param aligneTo Alignment boundary. @return Aligned byte count. */
   inline size_t aligne(size_t x, CORE::Aligne aligneTo) 
   {return (x + uintptr_t(aligneTo - 1)) & ~uintptr_t(aligneTo - 1);}
 
