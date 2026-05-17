@@ -1,6 +1,7 @@
 # Full Project Overview
 
-Navigation: Previous: [usage.md](usage.md) | Next: End
+> **Reading Path**  
+> Home: [Project Guide](index.md) | Previous: [Usage](usage.md) | Next: Finished
 
 This project is organized as a tiny neural-network execution stack. It is not a high-level framework yet; it is closer to a runtime core where tensors, memory, and operations are explicit.
 
@@ -181,4 +182,7 @@ The headers describe what the class exposes. The `.cu` files hold kernels and li
 
 The test is intentionally direct. It is not a framework test runner. It is a living example of how to create handlers, bind tensors, use operators, and validate outputs.
 
-Navigation: Previous: [usage.md](usage.md) | Next: End
+---
+
+> **End Of Guide**  
+> Previous: [Usage](usage.md) | Back to: [Project Guide](index.md)

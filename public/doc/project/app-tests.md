@@ -1,6 +1,7 @@
 # App Test Harness
 
-Navigation: Previous: [operator.md](operator.md) | Next: [usage.md](usage.md)
+> **Reading Path**  
+> Home: [Project Guide](index.md) | Previous: [OPERATOR](operator.md) | Next: [Usage](usage.md)
 
 `app/src/app.cu` is now a hungry operator readiness harness.
 
@@ -31,4 +32,7 @@ The harness prints `[PASS]` or `[FAIL]` per check and returns nonzero if any ope
 
 This file is meant to answer: "Are these operators ready to become math layers?"
 
-Navigation: Previous: [operator.md](operator.md) | Next: [usage.md](usage.md)
+---
+
+> **Continue Reading**  
+> Previous: [OPERATOR](operator.md) | Next: [Usage](usage.md)

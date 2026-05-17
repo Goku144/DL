@@ -1,6 +1,7 @@
 # VIEW
 
-Navigation: Previous: [core.md](core.md) | Next: [handler.md](handler.md)
+> **Reading Path**  
+> Home: [Project Guide](index.md) | Previous: [CORE](core.md) | Next: [HANDLER](handler.md)
 
 `public/inc/VIEW` defines the tensor view system.
 
@@ -48,4 +49,7 @@ x.getCpuPtr(); // host memory
 x.getGpuPtr(); // device memory
 ```
 
-Navigation: Previous: [core.md](core.md) | Next: [handler.md](handler.md)
+---
+
+> **Continue Reading**  
+> Previous: [CORE](core.md) | Next: [HANDLER](handler.md)

@@ -1,6 +1,7 @@
 # Usage
 
-Navigation: Previous: [app-tests.md](app-tests.md) | Next: [huge.md](huge.md)
+> **Reading Path**  
+> Home: [Project Guide](index.md) | Previous: [App Tests](app-tests.md) | Next: [Full Overview](huge.md)
 
 ## Create Handlers
 
@@ -71,4 +72,7 @@ if(io.peekErr() != CORE::ioSuccess) {
 
 Use `getErr()` when you want to read and clear the error.
 
-Navigation: Previous: [app-tests.md](app-tests.md) | Next: [huge.md](huge.md)
+---
+
+> **Continue Reading**  
+> Previous: [App Tests](app-tests.md) | Next: [Full Overview](huge.md)

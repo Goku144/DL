@@ -1,6 +1,7 @@
 # HANDLER
 
-Navigation: Previous: [view.md](view.md) | Next: [operator.md](operator.md)
+> **Reading Path**  
+> Home: [Project Guide](index.md) | Previous: [VIEW](view.md) | Next: [OPERATOR](operator.md)
 
 `public/inc/HANDLER` owns memory, IO, files, and GPU library handles.
 
@@ -47,4 +48,7 @@ Operators use `Workspace` to launch kernels and library calls on the same stream
 
 Reads raw files, CSV metadata, and image batches. It can convert loaded uint8 image data into F16 GPU tensors.
 
-Navigation: Previous: [view.md](view.md) | Next: [operator.md](operator.md)
+---
+
+> **Continue Reading**  
+> Previous: [VIEW](view.md) | Next: [OPERATOR](operator.md)

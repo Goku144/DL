@@ -1,6 +1,7 @@
 # Project Guide
 
-Navigation: Start | Next: [core.md](core.md)
+> **Reading Path**  
+> Home: **Project Guide** | Previous: None | Next: [CORE](core.md)
 
 This project is a small CUDA neural-network runtime built around four ideas:
 
@@ -32,14 +33,19 @@ xCpu[0] = __float2half(1.0f);
 io.copyHostToDevice(x);
 ```
 
-Read the guides in this folder in this order:
+## Reading Order
 
-1. [core.md](core.md)
-2. [view.md](view.md)
-3. [handler.md](handler.md)
-4. [operator.md](operator.md)
-5. [app-tests.md](app-tests.md)
-6. [usage.md](usage.md)
-7. [huge.md](huge.md)
+| Step | Guide | Purpose |
+|---:|---|---|
+| 1 | [CORE](core.md) | Shared errors, alignment, memory sizes, and logging. |
+| 2 | [VIEW](view.md) | Tensor metadata and tensor handles. |
+| 3 | [HANDLER](handler.md) | Memory arenas, IO, files, and execution workspace. |
+| 4 | [OPERATOR](operator.md) | GPU operations and their tensor contracts. |
+| 5 | [App Tests](app-tests.md) | The readiness harness and what it validates. |
+| 6 | [Usage](usage.md) | The shortest practical recipe for using the runtime. |
+| 7 | [Full Overview](huge.md) | The long-form explanation tying everything together. |
 
-Navigation: Start | Next: [core.md](core.md)
+---
+
+> **Continue Reading**  
+> Next: [CORE](core.md)
