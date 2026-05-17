@@ -1,7 +1,7 @@
 #if !defined(OPERATOR_SGD_HPP)
 #define OPERATOR_SGD_HPP
 
-#include "CORE/State.hpp"
+#include "HANDLER/Workspace.hpp"
 
 namespace OPERATOR
 {
@@ -9,10 +9,20 @@ namespace OPERATOR
 class __align__(CORE::ALIGNE_TO_256) SGD
 {
 private:
-  /* var */
+  VIEW::Math *weight;
+  VIEW::Math *grad;
+  HANDLER::Workspace *workspace;
+
 public:
-  SGD(/* args */);
+  SGD(HANDLER::Workspace& workspace);
+  SGD(HANDLER::Workspace& workspace, VIEW::Math& weight, VIEW::Math& grad);
   ~SGD();
+
+  VIEW::Math& getWeight();
+  VIEW::Math& getGrad();
+
+  void setOperand(VIEW::Math& weight, VIEW::Math& grad);
+  void update(float lr);
 };
   
 }

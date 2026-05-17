@@ -1,6 +1,13 @@
 #include "HANDLER/Workspace.hpp"
+#include "OPERATOR/Conv2DReLU.hpp"
+#include "OPERATOR/CrossEntropy.hpp"
 #include "OPERATOR/Normalize.hpp"
+#include "OPERATOR/Pool.hpp"
+#include "OPERATOR/Relu.hpp"
+#include "OPERATOR/SGD.hpp"
+#include "OPERATOR/Softmax.hpp"
 
+#include <cuda_fp16.h>
 #include <cuda_runtime_api.h>
 #include <math.h>
 #include <stdio.h>
@@ -56,6 +63,376 @@ static bool checkIOSuccess(HANDLER::IO& io, const char *message)
   return false;
 }
 
+static void setGpuMath(HANDLER::IO& io, VIEW::Math& math, int dims[VIEW::MAX_RANK], int rank, VIEW::DType dtype)
+{
+  VIEW::Shape layout(dims, rank, dtype);
+  math.setLayout(layout);
+  io.bindGpu(math);
+}
+
+static bool copyHalfToGpu(VIEW::Math& math, const float *src)
+{
+  __half tmp[256];
+  if(math.getCount() > 256) return false;
+
+  for(size_t index = 0; index < math.getCount(); index++)
+    tmp[index] = __float2half_rn(src[index]);
+
+  return cudaMemcpy(math.getGpuPtr(), tmp, math.getCount() * VIEW::F16, cudaMemcpyHostToDevice) == cudaSuccess;
+}
+
+static bool copyCharToGpu(VIEW::Math& math, const uint8_t *src)
+{
+  return cudaMemcpy(math.getGpuPtr(), src, math.getCount() * VIEW::CHAR, cudaMemcpyHostToDevice) == cudaSuccess;
+}
+
+static bool readGpuFloatScalar(VIEW::Math& math, float *dst)
+{
+  return cudaMemcpy(dst, math.getGpuPtr(), VIEW::FLOAT, cudaMemcpyDeviceToHost) == cudaSuccess;
+}
+
+static bool allClose(const float *actual, const float *expected, size_t count, float tol)
+{
+  for(size_t index = 0; index < count; index++)
+    if(fabsf(actual[index] - expected[index]) > tol)
+      return false;
+  return true;
+}
+
+static bool testReluOperator(HANDLER::Workspace& workspace, HANDLER::IO& io)
+{
+  printf("Relu operator deep test start\n");
+
+  int dims[VIEW::MAX_RANK] = {2, 8, 0, 0};
+  VIEW::Math in;
+  VIEW::Math out;
+  VIEW::Math dOut;
+  VIEW::Math dIn;
+  VIEW::Math outCpu;
+  VIEW::Math dInCpu;
+
+  setGpuMath(io, in, dims, 2, VIEW::F16);
+  setGpuMath(io, out, dims, 2, VIEW::F16);
+  setGpuMath(io, dOut, dims, 2, VIEW::F16);
+  setGpuMath(io, dIn, dims, 2, VIEW::F16);
+
+  float x[16] = {-3.0f, -2.0f, -1.0f, -0.5f, 0.0f, 0.5f, 1.0f, 2.0f,
+                 3.0f, -4.0f, 5.0f, -6.0f, 7.0f, -8.0f, 9.0f, -10.0f};
+  float dy[16];
+  float expectedY[16];
+  float expectedDx[16];
+  for(int index = 0; index < 16; index++)
+  {
+    dy[index] = (float)(index + 1);
+    expectedY[index] = x[index] > 0.0f ? x[index] : 0.0f;
+    expectedDx[index] = x[index] > 0.0f ? dy[index] : 0.0f;
+  }
+
+  bool ok = true;
+  ok &= check(copyHalfToGpu(in, x), "Relu input copied to GPU");
+  ok &= check(copyHalfToGpu(dOut, dy), "Relu upstream gradient copied to GPU");
+
+  OPERATOR::Relu relu(workspace, out, in);
+  relu.forward();
+  cudaError_t syncErr = cudaStreamSynchronize(workspace.getStream());
+  ok &= check(syncErr == cudaSuccess, "Relu forward stream synchronizes cleanly");
+  io.copyHalfToCpuFloat(outCpu, out);
+  ok &= checkIOSuccess(io, "Relu forward copied back to CPU float");
+  ok &= check(allClose((float *)outCpu.getCpuPtr(), expectedY, 16, 0.001f), "Relu forward clamps negatives to zero");
+
+  relu.setGradOperand(dIn, dOut);
+  relu.backward();
+  syncErr = cudaStreamSynchronize(workspace.getStream());
+  ok &= check(syncErr == cudaSuccess, "Relu backward stream synchronizes cleanly");
+  io.copyHalfToCpuFloat(dInCpu, dIn);
+  ok &= checkIOSuccess(io, "Relu backward copied back to CPU float");
+  ok &= check(allClose((float *)dInCpu.getCpuPtr(), expectedDx, 16, 0.001f), "Relu backward gates gradients by input sign");
+
+  return ok;
+}
+
+static bool testSgdOperator(HANDLER::Workspace& workspace, HANDLER::IO& io)
+{
+  printf("SGD operator deep test start\n");
+
+  int dims[VIEW::MAX_RANK] = {16, 0, 0, 0};
+  VIEW::Math weight;
+  VIEW::Math grad;
+  VIEW::Math weightCpu;
+
+  setGpuMath(io, weight, dims, 1, VIEW::F16);
+  setGpuMath(io, grad, dims, 1, VIEW::F16);
+
+  float w[16];
+  float g[16];
+  float expected[16];
+  for(int index = 0; index < 16; index++)
+  {
+    w[index] = 1.0f + (float)index;
+    g[index] = 0.25f * (float)(index + 1);
+    expected[index] = w[index] - 0.1f * g[index];
+  }
+
+  bool ok = true;
+  ok &= check(copyHalfToGpu(weight, w), "SGD weight copied to GPU");
+  ok &= check(copyHalfToGpu(grad, g), "SGD gradient copied to GPU");
+
+  OPERATOR::SGD sgd(workspace, weight, grad);
+  sgd.update(0.1f);
+  cudaError_t syncErr = cudaStreamSynchronize(workspace.getStream());
+  ok &= check(syncErr == cudaSuccess, "SGD update stream synchronizes cleanly");
+
+  io.copyHalfToCpuFloat(weightCpu, weight);
+  ok &= checkIOSuccess(io, "SGD updated weight copied back to CPU float");
+  ok &= check(allClose((float *)weightCpu.getCpuPtr(), expected, 16, 0.01f), "SGD applies weight -= lr * grad");
+
+  return ok;
+}
+
+static bool testCrossEntropyOperator(HANDLER::Workspace& workspace, HANDLER::IO& io)
+{
+  printf("CrossEntropy operator deep test start\n");
+
+  int probDims[VIEW::MAX_RANK] = {2, 16, 0, 0};
+  int labelDims[VIEW::MAX_RANK] = {2, 0, 0, 0};
+  int lossDims[VIEW::MAX_RANK] = {1, 0, 0, 0};
+  VIEW::Math prob;
+  VIEW::Math labels;
+  VIEW::Math loss;
+  VIEW::Math dProb;
+  VIEW::Math dProbCpu;
+
+  setGpuMath(io, prob, probDims, 2, VIEW::F16);
+  setGpuMath(io, dProb, probDims, 2, VIEW::F16);
+  setGpuMath(io, labels, labelDims, 1, VIEW::CHAR);
+  setGpuMath(io, loss, lossDims, 1, VIEW::FLOAT);
+
+  float p[32];
+  float expectedGrad[32];
+  for(int index = 0; index < 32; index++)
+    p[index] = 0.02f;
+  p[3] = 0.70f;
+  p[19] = 0.55f;
+  uint8_t y[2] = {3, 3};
+  float expectedLoss = (-logf(p[3] + 1e-7f) - logf(p[19] + 1e-7f)) * 0.5f;
+  for(int row = 0; row < 2; row++)
+    for(int col = 0; col < 16; col++)
+      expectedGrad[row * 16 + col] = (p[row * 16 + col] - (col == 3 ? 1.0f : 0.0f)) * 0.5f;
+
+  bool ok = true;
+  ok &= check(copyHalfToGpu(prob, p), "CrossEntropy probability copied to GPU");
+  ok &= check(copyCharToGpu(labels, y), "CrossEntropy labels copied to GPU");
+
+  OPERATOR::CrossEntropy ce(workspace, dProb, loss, prob, labels);
+  ce.forwardBackward();
+  cudaError_t syncErr = cudaStreamSynchronize(workspace.getStream());
+  ok &= check(syncErr == cudaSuccess, "CrossEntropy stream synchronizes cleanly");
+
+  float gotLoss = 0.0f;
+  ok &= check(readGpuFloatScalar(loss, &gotLoss), "CrossEntropy scalar loss copied back to CPU");
+  ok &= check(fabsf(gotLoss - expectedLoss) < 0.003f, "CrossEntropy loss matches target probabilities");
+
+  io.copyHalfToCpuFloat(dProbCpu, dProb);
+  ok &= checkIOSuccess(io, "CrossEntropy gradient copied back to CPU float");
+  ok &= check(allClose((float *)dProbCpu.getCpuPtr(), expectedGrad, 32, 0.0025f), "CrossEntropy gradient is (prob - onehot) / batch");
+
+  return ok;
+}
+
+static bool testSoftmaxOperator(HANDLER::Workspace& workspace, HANDLER::IO& io)
+{
+  printf("Softmax operator deep test start\n");
+
+  int dims[VIEW::MAX_RANK] = {2, 16, 0, 0};
+  VIEW::Math in;
+  VIEW::Math out;
+  VIEW::Math outCpu;
+
+  setGpuMath(io, in, dims, 2, VIEW::F16);
+  setGpuMath(io, out, dims, 2, VIEW::F16);
+
+  float logits[32];
+  float expected[32];
+  for(int row = 0; row < 2; row++)
+  {
+    float sum = 0.0f;
+    for(int col = 0; col < 16; col++)
+    {
+      logits[row * 16 + col] = 0.1f * (float)(col - 8 + row);
+      expected[row * 16 + col] = expf(logits[row * 16 + col]);
+      sum += expected[row * 16 + col];
+    }
+    for(int col = 0; col < 16; col++)
+      expected[row * 16 + col] /= sum;
+  }
+
+  bool ok = true;
+  ok &= check(copyHalfToGpu(in, logits), "Softmax logits copied to GPU");
+
+  OPERATOR::Softmax softmax(workspace, out, in);
+  softmax.forward();
+  cudaError_t syncErr = cudaStreamSynchronize(workspace.getStream());
+  ok &= check(syncErr == cudaSuccess, "Softmax forward stream synchronizes cleanly");
+
+  io.copyHalfToCpuFloat(outCpu, out);
+  ok &= checkIOSuccess(io, "Softmax output copied back to CPU float");
+  ok &= check(allClose((float *)outCpu.getCpuPtr(), expected, 32, 0.0025f), "Softmax output matches CPU row softmax");
+
+  return ok;
+}
+
+static bool testPoolOperator(HANDLER::Workspace& workspace, HANDLER::IO& io)
+{
+  printf("Pool operator deep test start\n");
+
+  int inDims[VIEW::MAX_RANK] = {1, 1, 4, 4};
+  int outDims[VIEW::MAX_RANK] = {1, 1, 2, 2};
+  VIEW::Math in;
+  VIEW::Math out;
+  VIEW::Math dOut;
+  VIEW::Math dIn;
+  VIEW::Math outCpu;
+  VIEW::Math dInCpu;
+
+  setGpuMath(io, in, inDims, 4, VIEW::F16);
+  setGpuMath(io, out, outDims, 4, VIEW::F16);
+  setGpuMath(io, dOut, outDims, 4, VIEW::F16);
+  setGpuMath(io, dIn, inDims, 4, VIEW::F16);
+
+  float x[16] = {1, 5, 2, 3,
+                 4, 9, 6, 7,
+                 8, 1, 10, 2,
+                 3, 4, 5, 11};
+  float dy[4] = {1, 2, 3, 4};
+  float expectedY[4] = {9, 7, 8, 11};
+  float expectedDx[16] = {0, 0, 0, 0,
+                          0, 1, 0, 2,
+                          3, 0, 0, 0,
+                          0, 0, 0, 4};
+
+  bool ok = true;
+  ok &= check(copyHalfToGpu(in, x), "Pool input copied to GPU");
+  ok &= check(copyHalfToGpu(dOut, dy), "Pool upstream gradient copied to GPU");
+
+  OPERATOR::Pool pool(workspace, out, in);
+  pool.setConfig(2, 2, 0, 0, 2, 2);
+  pool.maxForward();
+  cudaError_t syncErr = cudaStreamSynchronize(workspace.getStream());
+  ok &= check(syncErr == cudaSuccess, "Pool forward stream synchronizes cleanly");
+  io.copyHalfToCpuFloat(outCpu, out);
+  ok &= checkIOSuccess(io, "Pool output copied back to CPU float");
+  ok &= check(allClose((float *)outCpu.getCpuPtr(), expectedY, 4, 0.001f), "Pool forward picks 2x2 maxima");
+
+  pool.setGradOperand(dIn, dOut);
+  pool.maxBackward();
+  syncErr = cudaStreamSynchronize(workspace.getStream());
+  ok &= check(syncErr == cudaSuccess, "Pool backward stream synchronizes cleanly");
+  io.copyHalfToCpuFloat(dInCpu, dIn);
+  ok &= checkIOSuccess(io, "Pool gradient copied back to CPU float");
+  ok &= check(allClose((float *)dInCpu.getCpuPtr(), expectedDx, 16, 0.001f), "Pool backward routes gradients to maxima");
+
+  return ok;
+}
+
+static bool testConv2DOperator(HANDLER::Workspace& workspace, HANDLER::IO& io)
+{
+  printf("Conv2D operator deep test start\n");
+
+  int xDims[VIEW::MAX_RANK] = {1, 1, 4, 4};
+  int wDims[VIEW::MAX_RANK] = {1, 1, 3, 3};
+  int bDims[VIEW::MAX_RANK] = {1, 0, 0, 0};
+  VIEW::Math x;
+  VIEW::Math w;
+  VIEW::Math b;
+  VIEW::Math y;
+  VIEW::Math dY;
+  VIEW::Math dX;
+  VIEW::Math dW;
+  VIEW::Math dB;
+  VIEW::Math yCpu;
+  VIEW::Math dXCpu;
+  VIEW::Math dWCpu;
+  VIEW::Math dBCpu;
+
+  setGpuMath(io, x, xDims, 4, VIEW::F16);
+  setGpuMath(io, y, xDims, 4, VIEW::F16);
+  setGpuMath(io, dY, xDims, 4, VIEW::F16);
+  setGpuMath(io, dX, xDims, 4, VIEW::F16);
+  setGpuMath(io, w, wDims, 4, VIEW::F16);
+  setGpuMath(io, dW, wDims, 4, VIEW::F16);
+  setGpuMath(io, b, bDims, 1, VIEW::F16);
+  setGpuMath(io, dB, bDims, 1, VIEW::F16);
+
+  float xv[16];
+  float wv[9];
+  float bv[1] = {0.5f};
+  float dy[16];
+  float expectedY[16];
+  float expectedDX[16];
+  float expectedDW[9];
+  float expectedDB[1] = {16.0f};
+
+  for(int index = 0; index < 16; index++)
+  {
+    xv[index] = (float)(index + 1);
+    dy[index] = 1.0f;
+    expectedY[index] = 0.5f;
+    expectedDX[index] = 0.0f;
+  }
+  for(int index = 0; index < 9; index++)
+  {
+    wv[index] = 1.0f;
+    expectedDW[index] = 0.0f;
+  }
+
+  for(int oh = 0; oh < 4; oh++)
+    for(int ow = 0; ow < 4; ow++)
+      for(int kh = 0; kh < 3; kh++)
+        for(int kw = 0; kw < 3; kw++)
+        {
+          int ih = oh + kh - 1;
+          int iw = ow + kw - 1;
+          if(ih < 0 || ih >= 4 || iw < 0 || iw >= 4) continue;
+          expectedY[oh * 4 + ow] += xv[ih * 4 + iw];
+          expectedDW[kh * 3 + kw] += xv[ih * 4 + iw];
+          expectedDX[ih * 4 + iw] += 1.0f;
+        }
+
+  bool ok = true;
+  ok &= check(copyHalfToGpu(x, xv), "Conv2D input copied to GPU");
+  ok &= check(copyHalfToGpu(w, wv), "Conv2D weight copied to GPU");
+  ok &= check(copyHalfToGpu(b, bv), "Conv2D bias copied to GPU");
+  ok &= check(copyHalfToGpu(dY, dy), "Conv2D upstream gradient copied to GPU");
+
+  OPERATOR::Conv2DRelu conv(workspace, y, x, w, b);
+  conv.setConfig(1, 1, 1, 1, 1, 1);
+  conv.forward();
+  cudaError_t syncErr = cudaStreamSynchronize(workspace.getStream());
+  ok &= check(syncErr == cudaSuccess, "Conv2D forward stream synchronizes cleanly");
+  io.copyHalfToCpuFloat(yCpu, y);
+  ok &= checkIOSuccess(io, "Conv2D output copied back to CPU float");
+  ok &= check(allClose((float *)yCpu.getCpuPtr(), expectedY, 16, 0.05f), "Conv2D forward computes padded 3x3 conv plus bias");
+
+  conv.setGradOperand(dX, dW, dB, dY);
+  conv.backward();
+  syncErr = cudaStreamSynchronize(workspace.getStream());
+  ok &= check(syncErr == cudaSuccess, "Conv2D backward stream synchronizes cleanly");
+
+  io.copyHalfToCpuFloat(dBCpu, dB);
+  ok &= checkIOSuccess(io, "Conv2D bias gradient copied back to CPU float");
+  ok &= check(allClose((float *)dBCpu.getCpuPtr(), expectedDB, 1, 0.05f), "Conv2D backward bias gradient sums dOut");
+
+  io.copyHalfToCpuFloat(dWCpu, dW);
+  ok &= checkIOSuccess(io, "Conv2D weight gradient copied back to CPU float");
+  ok &= check(allClose((float *)dWCpu.getCpuPtr(), expectedDW, 9, 0.1f), "Conv2D backward filter gradient matches CPU reference");
+
+  io.copyHalfToCpuFloat(dXCpu, dX);
+  ok &= checkIOSuccess(io, "Conv2D input gradient copied back to CPU float");
+  ok &= check(allClose((float *)dXCpu.getCpuPtr(), expectedDX, 16, 0.05f), "Conv2D backward input gradient matches CPU reference");
+
+  return ok;
+}
+
 int main()
 {
   HANDLER::Cpu cpu(CORE::MEMORY_32_MB);
@@ -63,7 +440,7 @@ int main()
   HANDLER::IO io(cpu, cuda);
   HANDLER::File file(io);
 
-  const size_t scratchBytes = 4096;
+  const size_t scratchBytes = CORE::MEMORY_32_MB;
   HANDLER::Workspace workspace(io, file, scratchBytes);
   bool ok = true;
 
@@ -210,6 +587,13 @@ int main()
   {
     ok &= check(false, "dataset has at least one image for GPU half pull test");
   }
+
+  ok &= testReluOperator(workspace, io);
+  ok &= testSgdOperator(workspace, io);
+  ok &= testCrossEntropyOperator(workspace, io);
+  ok &= testSoftmaxOperator(workspace, io);
+  ok &= testPoolOperator(workspace, io);
+  ok &= testConv2DOperator(workspace, io);
 
   printf("App tests %s\n", ok ? "passed" : "failed");
 
