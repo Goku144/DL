@@ -30,17 +30,38 @@ namespace CORE
     ioSuccess = 0x00,
     ioErrCopyToHost = 0x01 << 1,
     ioErrCopyToDevice = 0x01 << 2,
-    ioErrReadBytes = 0x01 << 3,
-    ioErrWriteBytes = 0x01 << 4,
-    ioErrCreadCsv = 0x01 << 5,
-    ioErrReadImg = 0x01 << 6,
     ioErrOutOfMemory = 0x01 << 7,
     ioErrOutOfBound = 0x01 << 8,
     ioErrNull = 0x01 << 9,
     ioErrInvalidValue = 0x01 << 10,
     ioErrInvalidState = 0x01 << 11,
-    ioErrOpen = 0x01 << 12,
-    ioErrClose = 0x01 << 13,
+  };
+
+  enum errFile
+  {
+    fileSuccess = 0x00,
+    fileErrRead = 0x01 << 1,
+    fileErrWrite = 0x01 << 2,
+    fileErrReadCsv = 0x01 << 3,
+    fileErrReadImg = 0x01 << 4,
+    fileErrOpen = 0x01 << 5,
+    fileErrClose = 0x01 << 6,
+    fileErrNull = 0x01 << 7,
+    fileErrInvalidState = 0x01 << 8,
+    fileErrIO = 0x01 << 9,
+  };
+
+  enum errWorkspace
+  {
+    workspaceSuccess = 0x00,
+    workspaceErrCudnnCreate = 0x01 << 1,
+    workspaceErrCudnnDestroy = 0x01 << 2,
+    workspaceErrCublasLtCreate = 0x01 << 3,
+    workspaceErrCublasLtDestroy = 0x01 << 4,
+    workspaceErrScratchAlloc = 0x01 << 5,
+    workspaceErrScratchFree = 0x01 << 6,
+    workspaceErrScratchOutOfBound = 0x01 << 7,
+    workspaceErrNull = 0x01 << 8,
   };
 
   enum State

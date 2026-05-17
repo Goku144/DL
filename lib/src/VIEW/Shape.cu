@@ -72,14 +72,20 @@ void VIEW::Shape::setShape(int dims[VIEW::MAX_RANK], int rank, VIEW::DType dtype
 {
   if(rank > VIEW::MAX_RANK)
     CORE::logFatal(file, line, "Shape Rank overflow (rank = %d)", rank);
-  
+
   int tmp = 1, len = rank - 1;
-  for (size_t index = 0; index < rank; index++)
+  for (size_t index = 0; index < VIEW::MAX_RANK; index++)
   {
-    this->strides[len - index] = tmp;
-    this->dims[index] = dims[index];
-    tmp *= dims[len - index];
+    this->dims[index] = 0;
+    this->strides[index] = 0;
+    if(index < rank)
+    {
+      this->strides[len - index] = tmp;
+      this->dims[index] = dims[index];
+      tmp *= dims[len - index];
+    }
   }
+  
   this->rank = rank;
   this->dtype = dtype;
 }

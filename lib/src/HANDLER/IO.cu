@@ -35,17 +35,11 @@ static const char *getIOErrorMessage(CORE::errIO err)
   if(err == CORE::ioSuccess) return "IO success";
   if(err == CORE::ioErrCopyToHost) return "IO faild to copy from device to host or from host to host";
   if(err == CORE::ioErrCopyToDevice) return "IO faild to copy from host to device or from device to device";
-  if(err == CORE::ioErrReadBytes) return "IO failed to read bytes";
-  if(err == CORE::ioErrWriteBytes) return "IO failed to write bytes";
-  if(err == CORE::ioErrCreadCsv) return "IO failed to read csv";
-  if(err == CORE::ioErrReadImg) return "IO failed to read image";
   if(err == CORE::ioErrOutOfMemory) return "IO out of memory";
   if(err == CORE::ioErrOutOfBound) return "IO out of bound";
   if(err == CORE::ioErrNull) return "IO null pointer";
   if(err == CORE::ioErrInvalidValue) return "IO invalid value";
   if(err == CORE::ioErrInvalidState) return "IO invalid state";
-  if(err == CORE::ioErrOpen) return "IO failed to open";
-  if(err == CORE::ioErrClose) return "IO failed to close";
   return "IO unknown error";
 }
 
