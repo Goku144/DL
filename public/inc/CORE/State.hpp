@@ -62,6 +62,9 @@ namespace CORE
     workspaceErrScratchFree = 0x01 << 6,
     workspaceErrScratchOutOfBound = 0x01 << 7,
     workspaceErrNull = 0x01 << 8,
+    workspaceErrStreamCreate = 0x01 << 9,
+    workspaceErrStreamDestroy = 0x01 << 10,
+    workspaceErrCudnnSetStream = 0x01 << 11,
   };
 
   enum State

@@ -13,6 +13,9 @@ static const char *getWorkspaceErrorMessage(CORE::errWorkspace err)
   if(err == CORE::workspaceErrScratchFree) return "Workspace failed to free scratch memory";
   if(err == CORE::workspaceErrScratchOutOfBound) return "Workspace scratch memory is too small";
   if(err == CORE::workspaceErrNull) return "Workspace null pointer";
+  if(err == CORE::workspaceErrStreamCreate) return "Workspace failed to create CUDA stream";
+  if(err == CORE::workspaceErrStreamDestroy) return "Workspace failed to destroy CUDA stream";
+  if(err == CORE::workspaceErrCudnnSetStream) return "Workspace failed to attach stream to cuDNN handle";
   return "Workspace unknown error";
 }
 
@@ -21,6 +24,12 @@ HANDLER::Workspace::Workspace(HANDLER::IO& io, HANDLER::File& file, size_t scrat
   this->io = &io;
   this->file = &file;
   file.setIO(io);
+
+  if(cudaStreamCreate(&this->stream) != cudaSuccess)
+  {
+    this->err = CORE::workspaceErrStreamCreate;
+    return;
+  }
 
   if(cudnnCreate(&this->cudnnHandle) != CUDNN_STATUS_SUCCESS)
   {
@@ -31,6 +40,12 @@ HANDLER::Workspace::Workspace(HANDLER::IO& io, HANDLER::File& file, size_t scrat
   if(cublasLtCreate(&this->cublasLtHandle) != CUBLAS_STATUS_SUCCESS)
   {
     this->err = CORE::workspaceErrCublasLtCreate;
+    return;
+  }
+
+  if(cudnnSetStream(this->cudnnHandle, this->stream) != CUDNN_STATUS_SUCCESS)
+  {
+    this->err = CORE::workspaceErrCudnnSetStream;
     return;
   }
 
@@ -61,6 +76,12 @@ HANDLER::Workspace::~Workspace()
     this->err = CORE::workspaceErrCudnnDestroy;
     CORE::logWarn(__FILE__, __LINE__, "%s", getWorkspaceErrorMessage(this->err));
   }
+
+  if(this->stream != NULL && cudaStreamDestroy(this->stream) != cudaSuccess)
+  {
+    this->err = CORE::workspaceErrStreamDestroy;
+    CORE::logWarn(__FILE__, __LINE__, "%s", getWorkspaceErrorMessage(this->err));
+  }
 }
 
 HANDLER::IO& HANDLER::Workspace::getIO()
@@ -81,6 +102,11 @@ cudnnHandle_t HANDLER::Workspace::getCudnnHandle()
 cublasLtHandle_t HANDLER::Workspace::getCublasLtHandle()
 {
   return this->cublasLtHandle;
+}
+
+cudaStream_t HANDLER::Workspace::getStream()
+{
+  return this->stream;
 }
 
 void *HANDLER::Workspace::getScratch(size_t requiredBytes)

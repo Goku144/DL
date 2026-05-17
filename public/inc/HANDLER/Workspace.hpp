@@ -3,6 +3,7 @@
 
 #include "HANDLER/File.hpp"
 
+#include <cuda_runtime_api.h>
 #include <cudnn.h>
 #include <cublasLt.h>
 
@@ -18,6 +19,7 @@ private:
 
   cudnnHandle_t cudnnHandle = NULL;
   cublasLtHandle_t cublasLtHandle = NULL;
+  cudaStream_t stream = NULL;
 
   void *scratchPtr = NULL;
   size_t scratchBytes = 0;
@@ -31,6 +33,7 @@ public:
 
   cudnnHandle_t getCudnnHandle();
   cublasLtHandle_t getCublasLtHandle();
+  cudaStream_t getStream();
 
   void *getScratch(size_t requiredBytes);
   size_t getScratchBytes() const;

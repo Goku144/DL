@@ -1,6 +1,8 @@
 #include "HANDLER/Workspace.hpp"
+#include "OPERATOR/Normalize.hpp"
 
 #include <cuda_runtime_api.h>
+#include <math.h>
 #include <stdio.h>
 
 static bool check(bool condition, const char *message)
@@ -110,6 +112,8 @@ int main()
   VIEW::Math labels;
   VIEW::Math gpuImages;
   VIEW::Math cpuFloatImages;
+  VIEW::Math normalizedGpuImages;
+  VIEW::Math normalizedCpuFloatImages;
 
   file.readCsv(imagePaths, labels, "public/target/meta/test.csv");
   ok &= checkFileSuccess(file, "image csv loaded");
@@ -155,6 +159,52 @@ int main()
     ok &= check(cpuFloatImages.getCount() == expectedCount, "CPU float image element count is correct");
     ok &= check(cpuFloatImages.getBytes() == expectedFloatBytes, "CPU float image uses float-sized storage");
     ok &= check(cpuFloatImages.getCpuPtr() != NULL, "CPU float image has host pointer");
+
+    VIEW::Shape normalizedLayout = gpuImages.getLayout();
+    normalizedGpuImages.setLayout(normalizedLayout);
+    io.bindGpu(normalizedGpuImages);
+    ok &= checkIOSuccess(io, "allocated Normalize GPU output");
+
+    bool normalizeOperandsOk =
+      normalizedGpuImages.getGpuPtr() != NULL &&
+      gpuImages.getGpuPtr() != NULL &&
+      normalizedGpuImages.getCount() == gpuImages.getCount() &&
+      normalizedGpuImages.getBytes() == gpuImages.getBytes() &&
+      normalizedGpuImages.getLayout().getDType() == VIEW::F16 &&
+      gpuImages.getLayout().getDType() == VIEW::F16;
+
+    ok &= check(normalizeOperandsOk, "Normalize input/output have matching F16 storage");
+
+    if(normalizeOperandsOk)
+    {
+      OPERATOR::Normalize normalize(workspace, normalizedGpuImages, gpuImages);
+      normalize.normByScalar(255.0f);
+
+      cudaError_t normalizeSyncErr = cudaStreamSynchronize(workspace.getStream());
+      ok &= check(normalizeSyncErr == cudaSuccess, "Normalize kernel stream synchronizes cleanly");
+
+      io.copyHalfToCpuFloat(normalizedCpuFloatImages, normalizedGpuImages);
+      ok &= checkIOSuccess(io, "copied normalized GPU half image batch to CPU float");
+
+      VIEW::Shape& normalizedCpuLayout = normalizedCpuFloatImages.getLayout();
+      ok &= check(normalizedCpuLayout.getRank() == 4, "normalized CPU float image rank is NCHW");
+      ok &= check(normalizedCpuLayout.getDType() == VIEW::FLOAT, "normalized CPU float image dtype is FLOAT");
+      ok &= check(normalizedCpuFloatImages.getCount() == expectedCount, "normalized CPU float image count is correct");
+      ok &= check(normalizedCpuFloatImages.getBytes() == expectedFloatBytes, "normalized CPU float image uses float-sized storage");
+
+      float *before = (float *)cpuFloatImages.getCpuPtr();
+      float *after = (float *)normalizedCpuFloatImages.getCpuPtr();
+      bool normalizedValuesOk = before != NULL && after != NULL;
+      for(size_t index = 0; normalizedValuesOk && index < expectedCount; index++)
+      {
+        float expected = before[index] / 255.0f;
+        float diff = fabsf(after[index] - expected);
+        if(after[index] < -0.001f || after[index] > 1.001f || diff > 0.0025f)
+          normalizedValuesOk = false;
+      }
+
+      ok &= check(normalizedValuesOk, "Normalize result matches image / 255 within half precision");
+    }
   }
   else
   {
