@@ -250,7 +250,7 @@ void HANDLER::IO::copyHostToHost(VIEW::Math& dstMath, void *src, size_t n, VIEW:
     return;
   }
   if((this->err = checkCpuHandling(this->handleCpu, dstMath)) != CORE::ioSuccess) return;
-  if(dstMath.getBytes() < n) 
+  if(dstMath.getBytes() < n * dtype) 
   {
     this->err = CORE::ioErrOutOfBound;
     return;
@@ -264,8 +264,6 @@ void HANDLER::IO::copyHostToHost(VIEW::Math& dstMath, void *src, size_t n, VIEW:
 #else
   memcpy(dstMath.getCpuPtr(), src, n * dtype);
 #endif
-  int dims[VIEW::MAX_RANK] = {(int)n, 0, 0, 0};
-  dstMath.getLayout().setShape(dims, 1, dtype);
 }
 
 void HANDLER::IO::copyHostToHost(void *dst, VIEW::Math& srcMath, size_t n, VIEW::DType dtype)
@@ -276,7 +274,7 @@ void HANDLER::IO::copyHostToHost(void *dst, VIEW::Math& srcMath, size_t n, VIEW:
     return;
   }
   if((this->err = checkCpuHandling(this->handleCpu, srcMath)) != CORE::ioSuccess) return;
-  if(srcMath.getBytes() < n) 
+  if(srcMath.getBytes() < n * dtype) 
   {
     this->err = CORE::ioErrOutOfBound;
     return;
@@ -328,7 +326,7 @@ void HANDLER::IO::copyHostToDevice(VIEW::Math& dstMath, void *src, size_t n, VIE
     return;
   }
   if((this->err = checkGpuHandling(this->handleGpu, dstMath)) != CORE::ioSuccess) return;
-  if(dstMath.getBytes() < n) 
+  if(dstMath.getBytes() < n * dtype) 
   {
     this->err = CORE::ioErrOutOfBound;
     return;
@@ -338,8 +336,6 @@ void HANDLER::IO::copyHostToDevice(VIEW::Math& dstMath, void *src, size_t n, VIE
     this->err = CORE::ioErrCopyToHost;
     return;
   }
-  int dims[VIEW::MAX_RANK] = {(int)n, 0, 0, 0};
-  dstMath.getLayout().setShape(dims, 1, dtype);
 }
 
 void HANDLER::IO::copyHostToDevice(void *dst, VIEW::Math& srcMath, size_t n, VIEW::DType dtype)
@@ -350,7 +346,7 @@ void HANDLER::IO::copyHostToDevice(void *dst, VIEW::Math& srcMath, size_t n, VIE
     return;
   }
   if((this->err = checkCpuHandling(this->handleCpu, srcMath)) != CORE::ioSuccess) return;
-  if(srcMath.getBytes() < n) 
+  if(srcMath.getBytes() < n * dtype) 
   {
     this->err = CORE::ioErrOutOfBound;
     return;
@@ -398,7 +394,7 @@ void HANDLER::IO::copyDeviceToHost(VIEW::Math& dstMath, void *src, size_t n, VIE
     return;
   }
   if((this->err = checkCpuHandling(this->handleCpu, dstMath)) != CORE::ioSuccess) return;
-  if(dstMath.getBytes() < n) 
+  if(dstMath.getBytes() < n * dtype) 
   {
     this->err = CORE::ioErrOutOfBound;
     return;
@@ -408,8 +404,6 @@ void HANDLER::IO::copyDeviceToHost(VIEW::Math& dstMath, void *src, size_t n, VIE
     this->err = CORE::ioErrCopyToHost;
     return;
   }
-  int dims[VIEW::MAX_RANK] = {(int)n, 0, 0, 0};
-  dstMath.getLayout().setShape(dims, 1, dtype);
 }
 
 void HANDLER::IO::copyDeviceToHost(void *dst, VIEW::Math& srcMath, size_t n, VIEW::DType dtype)
@@ -420,7 +414,7 @@ void HANDLER::IO::copyDeviceToHost(void *dst, VIEW::Math& srcMath, size_t n, VIE
     return;
   }
   if((this->err = checkGpuHandling(this->handleGpu, srcMath)) != CORE::ioSuccess) return;
-  if(srcMath.getBytes() < n) 
+  if(srcMath.getBytes() < n * dtype) 
   {
     this->err = CORE::ioErrOutOfBound;
     return;
@@ -509,7 +503,7 @@ void HANDLER::IO::copyDeviceToDevice(VIEW::Math& dstMath, void *src, size_t n, V
     return;
   }
   if((this->err = checkGpuHandling(this->handleGpu, dstMath)) != CORE::ioSuccess) return;
-  if(dstMath.getBytes() < n) 
+  if(dstMath.getBytes() < n * dtype) 
   {
     this->err = CORE::ioErrOutOfBound;
     return;
@@ -519,8 +513,6 @@ void HANDLER::IO::copyDeviceToDevice(VIEW::Math& dstMath, void *src, size_t n, V
     this->err = CORE::ioErrCopyToHost;
     return;
   }
-  int dims[VIEW::MAX_RANK] = {(int)n, 0, 0, 0};
-  dstMath.getLayout().setShape(dims, 1, dtype);
 }
 
 void HANDLER::IO::copyDeviceToDevice(void *dst, VIEW::Math& srcMath, size_t n, VIEW::DType dtype)
@@ -531,7 +523,7 @@ void HANDLER::IO::copyDeviceToDevice(void *dst, VIEW::Math& srcMath, size_t n, V
     return;
   }
   if((this->err = checkGpuHandling(this->handleGpu, srcMath)) != CORE::ioSuccess) return;
-  if(srcMath.getBytes() < n) 
+  if(srcMath.getBytes() < n * dtype) 
   {
     this->err = CORE::ioErrOutOfBound;
     return;
