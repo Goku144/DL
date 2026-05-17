@@ -9,7 +9,7 @@ namespace OPERATOR
 class __align__(CORE::ALIGNE_TO_256) Normalize
 {
 private:
-  /* var */
+  
 public:
   Normalize(/* args */);
   ~Normalize();

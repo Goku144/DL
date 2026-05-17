@@ -62,6 +62,8 @@ public:
 
   void copyDeviceToHost(void *dst, VIEW::Math& srcMath, size_t n, VIEW::DType dtype = VIEW::CHAR);
 
+  void copyHalfToCpuFloat(VIEW::Math& dstMath, VIEW::Math& srcMath);
+
   void copyDeviceToDevice(VIEW::Math& dstMath, VIEW::Math& srcMath);
 
   void copyDeviceToDevice(VIEW::Math& dstMath, void *src, size_t n, VIEW::DType dtype = VIEW::CHAR);

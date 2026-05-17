@@ -3,11 +3,22 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "CORE/stb_image.h"
 
+#include <cuda_fp16.h>
+#include <cuda_runtime_api.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+
+static __global__ void convertUint8ToHalfKernel(__half *dst, const uint8_t *src, size_t count)
+{
+  size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= count) return;
+
+  dst[index] = __float2half((float)src[index]);
+}
 
 static char *joinRootPath(const char *rootPath, const char *path)
 {
@@ -395,12 +406,16 @@ void HANDLER::File::copyImageToDevice()
     return;
   }
 
+  if(this->imageN == 0 || this->imageChannel == 0 || this->imageHeight == 0 || this->imageWidth == 0)
+  {
+    this->err = CORE::fileErrInvalidState;
+    return;
+  }
+
   int dims[VIEW::MAX_RANK] = {(int)this->imageN, this->imageChannel, this->imageHeight, this->imageWidth};
-  VIEW::Shape layout(dims, 4, VIEW::CHAR);
+  VIEW::Shape layout(dims, 4, VIEW::F16);
   VIEW::Math images;
   images.setLayout(layout);
-  images.setCpuPtr(this->imageCpuPtr);
-  images.setCpuOffset(this->imageCpuOffset);
 
   io->bindGpu(images);
   if(io->peekErr() != CORE::ioSuccess)
@@ -409,8 +424,32 @@ void HANDLER::File::copyImageToDevice()
     return;
   }
 
-  io->copyHostToDevice(images);
-  if(io->peekErr() != CORE::ioSuccess)
+  size_t count = (size_t)this->imageN * this->imageChannel * this->imageHeight * this->imageWidth;
+  uint8_t *deviceU8 = NULL;
+  if(cudaMalloc(&deviceU8, count * VIEW::CHAR) != cudaSuccess)
+  {
+    this->err = CORE::fileErrIO;
+    return;
+  }
+
+  if(cudaMemcpy(deviceU8, this->imageCpuPtr, count * VIEW::CHAR, cudaMemcpyHostToDevice) != cudaSuccess)
+  {
+    cudaFree(deviceU8);
+    this->err = CORE::fileErrIO;
+    return;
+  }
+
+  int threads = 256;
+  int blocks = (int)((count + threads - 1) / threads);
+  convertUint8ToHalfKernel<<<blocks, threads>>>((__half *)images.getGpuPtr(), deviceU8, count);
+  if(cudaGetLastError() != cudaSuccess || cudaDeviceSynchronize() != cudaSuccess)
+  {
+    cudaFree(deviceU8);
+    this->err = CORE::fileErrIO;
+    return;
+  }
+
+  if(cudaFree(deviceU8) != cudaSuccess)
   {
     this->err = CORE::fileErrIO;
     return;
@@ -472,7 +511,7 @@ void HANDLER::File::pullGpuImage(VIEW::Math& dst, size_t n, size_t offset)
 
   size_t imageSize = (size_t) this->imageHeight * this->imageWidth * this->imageChannel;
   int dims[VIEW::MAX_RANK] = {(int)n, this->imageChannel, this->imageHeight, this->imageWidth};
-  VIEW::Shape layout(dims, 4, VIEW::CHAR);
+  VIEW::Shape layout(dims, 4, VIEW::F16);
   dst.setLayout(layout);
 
   io->bindGpu(dst);
@@ -482,7 +521,7 @@ void HANDLER::File::pullGpuImage(VIEW::Math& dst, size_t n, size_t offset)
     return;
   }
 
-  io->copyDeviceToDevice(dst, (uint8_t *)this->imageGpuPtr + offset * imageSize, n * imageSize, VIEW::CHAR);
+  io->copyDeviceToDevice(dst, (__half *)this->imageGpuPtr + offset * imageSize, n * imageSize, VIEW::F16);
   if(io->peekErr() != CORE::ioSuccess)
   {
     this->err = CORE::fileErrIO;

@@ -1,5 +1,7 @@
 #include "HANDLER/IO.hpp"
 
+#include <cuda_fp16.h>
+
 #include <string>
 #include <iostream>
 #include <stdio.h>
@@ -28,6 +30,14 @@ static CORE::errIO checkGpuHandling(HANDLER::Cuda *gpuHandler, VIEW::Math &math)
 static bool isAGreaterThenB(VIEW::Math& a, VIEW::Math& b)
 {
   return a.getBytes() > b.getBytes();
+}
+
+static __global__ void convertHalfToFloatKernel(float *dst, const __half *src, size_t count)
+{
+  size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= count) return;
+
+  dst[index] = __half2float(src[index]);
 }
 
 static const char *getIOErrorMessage(CORE::errIO err)
@@ -416,6 +426,58 @@ void HANDLER::IO::copyDeviceToHost(void *dst, VIEW::Math& srcMath, size_t n, VIE
     return;
   }
   if(cudaMemcpy(dst, srcMath.getGpuPtr(), n * dtype, cudaMemcpyDeviceToHost) != cudaSuccess)
+  {
+    this->err = CORE::ioErrCopyToHost;
+    return;
+  }
+}
+
+void HANDLER::IO::copyHalfToCpuFloat(VIEW::Math& dstMath, VIEW::Math& srcMath)
+{
+  if((this->err = checkGpuHandling(this->handleGpu, srcMath)) != CORE::ioSuccess) return;
+
+  VIEW::Shape& srcLayout = srcMath.getLayout();
+  if(srcLayout.getDType() != VIEW::F16 || srcMath.getCount() == 0)
+  {
+    this->err = CORE::ioErrInvalidValue;
+    return;
+  }
+
+  int dims[VIEW::MAX_RANK] = {0, 0, 0, 0};
+  for(int index = 0; index < srcLayout.getRank(); index++)
+    dims[index] = srcLayout.getDim(index);
+
+  VIEW::Shape dstLayout(dims, srcLayout.getRank(), VIEW::FLOAT);
+  dstMath.setLayout(dstLayout);
+  this->bindCpu(dstMath);
+  if(this->err != CORE::ioSuccess) return;
+
+  size_t count = srcMath.getCount();
+  float *deviceFloat = NULL;
+  if(cudaMalloc(&deviceFloat, count * VIEW::FLOAT) != cudaSuccess)
+  {
+    this->err = CORE::ioErrOutOfMemory;
+    return;
+  }
+
+  int threads = 256;
+  int blocks = (int)((count + threads - 1) / threads);
+  convertHalfToFloatKernel<<<blocks, threads>>>(deviceFloat, (__half *)srcMath.getGpuPtr(), count);
+  if(cudaGetLastError() != cudaSuccess || cudaDeviceSynchronize() != cudaSuccess)
+  {
+    cudaFree(deviceFloat);
+    this->err = CORE::ioErrCopyToHost;
+    return;
+  }
+
+  if(cudaMemcpy(dstMath.getCpuPtr(), deviceFloat, count * VIEW::FLOAT, cudaMemcpyDeviceToHost) != cudaSuccess)
+  {
+    cudaFree(deviceFloat);
+    this->err = CORE::ioErrCopyToHost;
+    return;
+  }
+
+  if(cudaFree(deviceFloat) != cudaSuccess)
   {
     this->err = CORE::ioErrCopyToHost;
     return;
