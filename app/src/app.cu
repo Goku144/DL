@@ -54,22 +54,9 @@ int main(void)
 
   __half bv[1] = {one};
 
-  __half* xCpu = (__half*)x.getCpuPtr();
-  for (int i = 0; i < 16; i++) {
-    xCpu[i] = __float2half((float)i);
-  }
-
-  __half* wCpu = (__half*)w.getCpuPtr();
-  for (int i = 0; i < 9; i++) {
-    wCpu[i] = wv[i];
-  }
-
-  __half* bCpu = (__half*)b.getCpuPtr();
-  bCpu[0] = one;
-
-io.copyHostToDevice(x);
-io.copyHostToDevice(w);
-io.copyHostToDevice(b);
+  io.copyHostToDevice(x, xv, 16, VIEW::F16);
+  io.copyHostToDevice(w, wv,  9, VIEW::F16);
+  io.copyHostToDevice(b, bv,  1, VIEW::F16);
 
   OPERATOR::Conv2DRelu conv(workspace);
   conv.setOperand(y,x,w,b);
