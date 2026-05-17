@@ -21,25 +21,42 @@ private:
   HANDLER::Workspace *workspace;
 
 public:
-  /** @brief Create an unbound SGD operator. @param workspace Shared execution workspace. */
+  /** @brief Create an unbound SGD operator. 
+   * @param workspace Shared execution workspace. 
+   * */
   SGD(HANDLER::Workspace& workspace);
 
-  /** @brief Create an SGD operator and attach operands. @param workspace Shared execution workspace. @param weight Weight tensor updated in place. @param grad Gradient tensor read on GPU. */
+  /** @brief Create an SGD operator and attach operands. 
+   * @param workspace Shared execution workspace. 
+   * @param weight Weight tensor updated in place. 
+   * @param grad Gradient tensor read on GPU. 
+   * */
   SGD(HANDLER::Workspace& workspace, VIEW::Math& weight, VIEW::Math& grad);
 
   /** @brief Destroy the operator. */
   ~SGD();
 
-  /** @brief Get the weight tensor. @return Reference to the in-place weight tensor. */
+  /** @brief Get the weight tensor. 
+   * @return Reference to the in-place weight tensor. 
+   * */
   VIEW::Math& getWeight();
 
-  /** @brief Get the gradient tensor. @return Reference to the gradient tensor. */
+  /** @brief Get the gradient tensor. 
+   * @return Reference to the gradient tensor. 
+   * */
   VIEW::Math& getGrad();
 
-  /** @brief Attach operands. @param weight Weight tensor updated in place. @param grad Gradient tensor read on GPU. */
+  /** @brief Attach operands. 
+   * @param weight Weight tensor updated in place. 
+   * @param grad Gradient tensor read on GPU. 
+   * */
   void setOperand(VIEW::Math& weight, VIEW::Math& grad);
 
-  /** @brief Launch weight -= lr * grad. @param lr Learning rate. @note Does not set a project error enum directly. */
+  /** @brief Launch weight -= lr * grad. 
+   * @param lr Learning rate. 
+   * 
+   * @note Does not set a project error enum directly. 
+   * */
   void update(float lr);
 };
   

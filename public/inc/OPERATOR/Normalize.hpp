@@ -39,10 +39,14 @@ public:
   /** @brief Destroy the operator. */
   ~Normalize();
 
-  /** @brief Get the input tensor. @return Reference to the attached input tensor. */
+  /** @brief Get the input tensor. 
+   * @return Reference to the attached input tensor. 
+   * */
   VIEW::Math& getInput();
 
-  /** @brief Get the output tensor. @return Reference to the attached output tensor. */
+  /** @brief Get the output tensor. 
+   * @return Reference to the attached output tensor. 
+   * */
   VIEW::Math& getOutput();
 
   /**

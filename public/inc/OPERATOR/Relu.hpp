@@ -23,13 +23,17 @@ private:
   HANDLER::Workspace *workspace;
 
 public:
-  /** @brief Create an unbound ReLU operator. @param workspace Shared execution workspace. */
+  /** @brief Create an unbound ReLU operator. 
+   * @param workspace Shared execution workspace. */
   Relu(HANDLER::Workspace& workspace);
 
   /**
    * @brief Create a ReLU operator and attach forward operands.
+   * 
    * @param workspace Shared execution workspace.
+   * 
    * @param out Output F16 tensor written on GPU.
+   * 
    * @param in Input F16 tensor read on GPU.
    */
   Relu(HANDLER::Workspace& workspace, VIEW::Math& out, VIEW::Math& in);
@@ -37,28 +41,48 @@ public:
   /** @brief Destroy the operator. */
   ~Relu();
 
-  /** @brief Get the forward input. @return Reference to input tensor. */
+  /** @brief Get the forward input. 
+   * @return Reference to input tensor. 
+   * */
   VIEW::Math& getInput();
 
-  /** @brief Get the forward output. @return Reference to output tensor. */
+  /** @brief Get the forward output. 
+   * @return Reference to output tensor. 
+   * */
   VIEW::Math& getOutput();
 
-  /** @brief Get the backward output gradient. @return Reference to dInput tensor. */
+  /** @brief Get the backward output gradient. 
+   * @return Reference to dInput tensor. 
+   * */
   VIEW::Math& getGradInput();
 
-  /** @brief Get the backward input gradient. @return Reference to dOutput tensor. */
+  /** @brief Get the backward input gradient. 
+   * @return Reference to dOutput tensor. 
+   * */
   VIEW::Math& getGradOutput();
 
-  /** @brief Attach forward operands. @param out Output tensor. @param in Input tensor. */
+  /** @brief Attach forward operands. 
+   * @param out Output tensor. 
+   * @param in Input tensor. 
+   * */
   void setOperand(VIEW::Math& out, VIEW::Math& in);
 
-  /** @brief Attach backward operands. @param dIn Gradient written for input. @param dOut Upstream gradient read by the operator. */
+  /** @brief Attach backward operands. 
+   * @param dIn Gradient written for input. 
+   * @param dOut Upstream gradient read by the operator. 
+   * */
   void setGradOperand(VIEW::Math& dIn, VIEW::Math& dOut);
 
-  /** @brief Launch forward ReLU. @note Does not set a project error enum directly. */
+  /** @brief Launch forward ReLU. 
+   * 
+   * @note Does not set a project error enum directly. 
+   * */
   void forward();
 
-  /** @brief Launch backward ReLU. @note Does not set a project error enum directly. */
+  /** @brief Launch backward ReLU. 
+   * 
+   * @note Does not set a project error enum directly. 
+   * */
   void backward();
 };
   

@@ -23,31 +23,55 @@ private:
   HANDLER::Workspace *workspace;
 
 public:
-  /** @brief Create an unbound CrossEntropy operator. @param workspace Shared execution workspace. */
+  /** @brief Create an unbound CrossEntropy operator. 
+   * @param workspace Shared execution workspace. 
+   * */
   CrossEntropy(HANDLER::Workspace& workspace);
 
-  /** @brief Create a CrossEntropy operator and attach operands. @param workspace Shared execution workspace. @param dProb Output probability gradient. @param loss Output scalar loss. @param prob Input probabilities. @param target Input class labels as CHAR bytes. */
+  /** @brief Create a CrossEntropy operator and attach operands. 
+   * @param workspace Shared execution workspace. 
+   * @param dProb Output probability gradient. 
+   * @param loss Output scalar loss. 
+   * @param prob Input probabilities. 
+   * @param target Input class labels as CHAR bytes. 
+   * */
   CrossEntropy(HANDLER::Workspace& workspace, VIEW::Math& dProb, VIEW::Math& loss, VIEW::Math& prob, VIEW::Math& target);
 
   /** @brief Destroy the operator. */
   ~CrossEntropy();
 
-  /** @brief Get probabilities. @return Reference to probability tensor. */
+  /** @brief Get probabilities. 
+   * @return Reference to probability tensor. 
+   * */
   VIEW::Math& getProb();
 
-  /** @brief Get targets. @return Reference to target tensor. */
+  /** @brief Get targets. 
+   * @return Reference to target tensor. 
+   * */
   VIEW::Math& getTarget();
 
-  /** @brief Get loss. @return Reference to scalar loss tensor. */
+  /** @brief Get loss. 
+   * @return Reference to scalar loss tensor. 
+   * */
   VIEW::Math& getLoss();
 
-  /** @brief Get probability gradient. @return Reference to dProb tensor. */
+  /** @brief Get probability gradient. 
+   * @return Reference to dProb tensor. 
+   * */
   VIEW::Math& getGradProb();
 
-  /** @brief Attach operands. @param dProb Output probability gradient. @param loss Output scalar loss. @param prob Input probabilities. @param target Input class labels. */
+  /** @brief Attach operands. 
+   * @param dProb Output probability gradient. 
+   * @param loss Output scalar loss. 
+   * @param prob Input probabilities. 
+   * @param target Input class labels. 
+   * */
   void setOperand(VIEW::Math& dProb, VIEW::Math& loss, VIEW::Math& prob, VIEW::Math& target);
 
-  /** @brief Launch loss and dProb computation. @note Does not set a project error enum directly. */
+  /** @brief Launch loss and dProb computation. 
+   * 
+   * @note Does not set a project error enum directly. 
+   * */
   void forwardBackward();
 };
 
