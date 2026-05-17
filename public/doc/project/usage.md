@@ -1,5 +1,7 @@
 # Usage
 
+Navigation: Previous: [app-tests.md](app-tests.md) | Next: [huge.md](huge.md)
+
 ## Create Handlers
 
 ```cpp
@@ -69,3 +71,4 @@ if(io.peekErr() != CORE::ioSuccess) {
 
 Use `getErr()` when you want to read and clear the error.
 
+Navigation: Previous: [app-tests.md](app-tests.md) | Next: [huge.md](huge.md)

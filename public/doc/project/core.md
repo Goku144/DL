@@ -1,5 +1,7 @@
 # CORE
 
+Navigation: Previous: [index.md](index.md) | Next: [view.md](view.md)
+
 `public/inc/CORE` contains the low-level shared definitions.
 
 ## `CORE::Aligne`
@@ -35,3 +37,4 @@ if(io.peekErr() != CORE::ioSuccess) {
 
 Fatal logs are used for unrecoverable initialization failures such as failing to allocate the CPU or GPU arena.
 
+Navigation: Previous: [index.md](index.md) | Next: [view.md](view.md)

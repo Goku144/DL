@@ -1,5 +1,7 @@
 # OPERATOR
 
+Navigation: Previous: [handler.md](handler.md) | Next: [app-tests.md](app-tests.md)
+
 `public/inc/OPERATOR` and `lib/src/OPERATOR` define GPU operations.
 
 Every operator follows the same pattern:
@@ -95,3 +97,4 @@ dWeight = in^T * dOut
 dBias   = sum(dOut over batch)
 ```
 
+Navigation: Previous: [handler.md](handler.md) | Next: [app-tests.md](app-tests.md)

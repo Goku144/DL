@@ -1,5 +1,7 @@
 # VIEW
 
+Navigation: Previous: [core.md](core.md) | Next: [handler.md](handler.md)
+
 `public/inc/VIEW` defines the tensor view system.
 
 ## `VIEW::Shape`
@@ -46,3 +48,4 @@ x.getCpuPtr(); // host memory
 x.getGpuPtr(); // device memory
 ```
 
+Navigation: Previous: [core.md](core.md) | Next: [handler.md](handler.md)

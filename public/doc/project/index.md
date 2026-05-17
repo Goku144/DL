@@ -1,5 +1,7 @@
 # Project Guide
 
+Navigation: Start | Next: [core.md](core.md)
+
 This project is a small CUDA neural-network runtime built around four ideas:
 
 - **CORE** defines common error codes, memory sizes, alignment, and logging.
@@ -38,4 +40,6 @@ Read the guides in this folder in this order:
 4. [operator.md](operator.md)
 5. [app-tests.md](app-tests.md)
 6. [usage.md](usage.md)
+7. [huge.md](huge.md)
 
+Navigation: Start | Next: [core.md](core.md)
