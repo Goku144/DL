@@ -1,9 +1,11 @@
 # Usage
 
 > **Reading Path**  
-> Home: [Project Guide](index.md) | Previous: [App Tests](app-tests.md) | Next: [Full Overview](huge.md)
+> Home: [Project Manual](index.md) | Previous: [MODEL](MODEL/index.md) | Next: [Full Overview](huge.md)
 
-## Create Handlers
+This is the shortest practical recipe for using the runtime.
+
+## 1. Create Handlers
 
 ```cpp
 HANDLER::Cpu cpu(CORE::MEMORY_32_MB);
@@ -13,7 +15,15 @@ HANDLER::File file;
 HANDLER::Workspace workspace(io, file, CORE::MEMORY_32_MB);
 ```
 
-## Create Tensors
+Meaning:
+
+- `Cpu` owns host arena memory
+- `Cuda` owns device arena memory
+- `IO` binds tensors and copies data
+- `File` can load datasets/files
+- `Workspace` owns stream, cuDNN, cuBLASLt, and scratch memory
+
+## 2. Create Tensors
 
 ```cpp
 VIEW::Math x, y;
@@ -23,14 +33,21 @@ x.getLayout().setShape(dims, 1, VIEW::F16);
 y.getLayout().setShape(dims, 1, VIEW::F16);
 ```
 
-## Bind Memory
+## 3. Bind Memory
 
 ```cpp
 io.bind(x);
 io.bind(y);
 ```
 
-## Fill CPU Memory
+After this:
+
+```cpp
+x.getCpuPtr(); // valid CPU pointer
+x.getGpuPtr(); // valid GPU pointer
+```
+
+## 4. Fill Input CPU Memory
 
 ```cpp
 __half *xCpu = (__half *)x.getCpuPtr();
@@ -39,25 +56,33 @@ for(int i = 0; i < 16; i++) {
 }
 ```
 
-## Copy Inputs To GPU
+## 5. Copy Inputs To GPU
 
 ```cpp
 io.copyHostToDevice(x);
 ```
 
-## Run Operator
+## 6. Run Operator
 
 ```cpp
 OPERATOR::Relu relu(workspace, y, x);
 relu.forward();
 ```
 
-## Copy Output Back
+## 7. Copy Output Back
+
+For F16 output that you want to read as float:
 
 ```cpp
 VIEW::Math yFloat;
 io.copyHalfToCpuFloat(yFloat, y);
 io.printData(yFloat);
+```
+
+For same dtype CPU copy:
+
+```cpp
+io.copyDeviceToHost(y);
 ```
 
 ## Error Handling
@@ -70,9 +95,17 @@ if(io.peekErr() != CORE::ioSuccess) {
 }
 ```
 
-Use `getErr()` when you want to read and clear the error.
+Use `getErr()` when you want to read and clear the error:
+
+```cpp
+CORE::errIO err = io.getErr();
+```
+
+## App Folder
+
+`app/src/app.cu` is user-owned application space. It can be used for experiments, examples, manual tests, or real programs. It is not a required framework layer.
 
 ---
 
 > **Continue Reading**  
-> Previous: [App Tests](app-tests.md) | Next: [Full Overview](huge.md)
+> Previous: [MODEL](MODEL/index.md) | Next: [Full Overview](overview.md)

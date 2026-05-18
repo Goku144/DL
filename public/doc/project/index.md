@@ -1,51 +1,63 @@
-# Project Guide
+# DL Project Manual
 
 > **Reading Path**  
-> Home: **Project Guide** | Previous: None | Next: [CORE](core.md)
+> Home: **Project Manual** | Previous: None | Next: [Architecture](architecture.md)
 
-This project is a small CUDA neural-network runtime built around four ideas:
+This manual explains the DL runtime from the top of the hierarchy down to each public class and function.
 
-- **CORE** defines common error codes, memory sizes, alignment, and logging.
-- **VIEW** defines tensor metadata and tensor handles.
-- **HANDLER** owns memory, file IO, CUDA/cuDNN/cuBLASLt handles, and data movement.
-- **OPERATOR** implements GPU operations that read and write `VIEW::Math` tensors.
+DL is organized as a small CUDA/C++ neural-network runtime. It is not yet a complete deep-learning framework. It currently gives you the runtime building blocks: tensor metadata, memory handlers, GPU execution handles, IO helpers, and operators.
 
-The usual flow is:
+## Source Hierarchy
 
-```cpp
-HANDLER::Cpu cpu(CORE::MEMORY_32_MB);
-HANDLER::Cuda gpu(CORE::MEMORY_32_MB);
-HANDLER::IO io(cpu, gpu);
-HANDLER::File file;
-HANDLER::Workspace workspace(io, file, CORE::MEMORY_32_MB);
+```text
+CORE/
+  Shared constants, alignment, errors, and logging.
 
-VIEW::Math x;
-int dims[VIEW::MAX_RANK] = {16, 0, 0, 0};
-x.getLayout().setShape(dims, 1, VIEW::F16);
-io.bind(x);
+VIEW/
+  Tensor shape and tensor view objects.
+
+HANDLER/
+  CPU/GPU memory arenas, tensor binding, file IO, and execution workspace.
+
+OPERATOR/
+  GPU operators that consume and produce VIEW::Math tensors.
+
+MODEL/
+  Planned future layer/model abstraction. Not implemented yet.
 ```
 
-After shape and binding, fill CPU memory, copy to GPU, run an operator, and copy results back if needed.
+## Documentation Map
 
-```cpp
-__half *xCpu = (__half *)x.getCpuPtr();
-xCpu[0] = __float2half(1.0f);
-io.copyHostToDevice(x);
-```
-
-## Reading Order
-
-| Step | Guide | Purpose |
+| Order | Document | What It Explains |
 |---:|---|---|
-| 1 | [CORE](core.md) | Shared errors, alignment, memory sizes, and logging. |
-| 2 | [VIEW](view.md) | Tensor metadata and tensor handles. |
-| 3 | [HANDLER](handler.md) | Memory arenas, IO, files, and execution workspace. |
-| 4 | [OPERATOR](operator.md) | GPU operations and their tensor contracts. |
-| 5 | [App Tests](app-tests.md) | The readiness harness and what it validates. |
-| 6 | [Usage](usage.md) | The shortest practical recipe for using the runtime. |
-| 7 | [Full Overview](huge.md) | The long-form explanation tying everything together. |
+| 1 | [Architecture](architecture.md) | How all classes are orchestrated together. |
+| 2 | [CORE](CORE/index.md) | Shared project definitions and error vocabulary. |
+| 3 | [VIEW](VIEW/index.md) | Shape and tensor view objects. |
+| 4 | [HANDLER](HANDLER/index.md) | Memory, data movement, files, and workspace classes. |
+| 5 | [OPERATOR](OPERATOR/index.md) | Every operator class, operand contract, and function. |
+| 6 | [MODEL](MODEL/index.md) | Future model/layer direction. |
+| 7 | [Usage](usage.md) | Minimal practical usage recipe. |
+| 8 | [Full Overview](overview.md) | Long-form narrative overview. |
+
+## Most Important Rule
+
+Every operator follows the same life cycle:
+
+```text
+create handlers
+create VIEW::Math tensors
+set tensor shapes
+bind memory
+fill input CPU memory
+copy inputs to GPU
+attach operands to operator
+run operation
+copy outputs back if needed
+```
+
+Outputs must already exist, have a shape, and be bound before an operator writes to them.
 
 ---
 
 > **Continue Reading**  
-> Next: [CORE](core.md)
+> Next: [Architecture](architecture.md)

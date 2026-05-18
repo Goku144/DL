@@ -4,72 +4,49 @@ DL is a small CUDA/C++ neural-network runtime. It is built around explicit tenso
 
 The project is intentionally low-level: you create handlers, shape tensors, bind memory, copy data, attach tensors to operators, then launch operations.
 
-## Current Status
-
-The app test harness currently reports:
+## Principal Folders
 
 ```text
-Operator readiness: ready
+CORE/
+  Shared constants, errors, alignment, and logging.
+
+VIEW/
+  Tensor shape metadata and tensor handles.
+
+HANDLER/
+  CPU/GPU memory arenas, IO, files, and execution workspace.
+
+OPERATOR/
+  GPU math operators.
+
+MODEL/
+  Future model/layer abstraction. Not implemented yet.
 ```
 
-Covered operators:
-
-- `Normalize`
-- `Relu`
-- `SGD`
-- `Softmax`
-- `CrossEntropy`
-- `Pool`
-- `Conv2DRelu`
-- `MatrixMulBias`
-
-## Project Layout
+In the repo:
 
 ```text
-app/src/app.cu              Operator readiness test harness
-public/inc/CORE             Shared enums, errors, alignment, logging
-public/inc/VIEW             Tensor shape and tensor view classes
-public/inc/HANDLER          CPU/GPU memory, IO, file, workspace handlers
-public/inc/OPERATOR         Public operator class declarations
+public/inc/CORE             Public CORE headers
+public/inc/VIEW             Public VIEW headers
+public/inc/HANDLER          Public HANDLER headers
+public/inc/OPERATOR         Public OPERATOR headers
 lib/src                     Implementations and CUDA kernels
-public/doc/project          Project documentation
+app/src/app.cu              User application / experiment entrypoint
+public/doc/project          Project manual
 Makefile                    Build, run, dataset, and clean targets
 ```
 
-## Architecture
+## Architecture In One Pass
 
-The stack has four main layers.
+`CORE` defines the vocabulary.
 
-### CORE
+`VIEW` defines tensor metadata and tensor handles.
 
-`CORE` contains common definitions:
+`HANDLER` owns memory and execution resources.
 
-- memory sizes such as `CORE::MEMORY_32_MB`
-- alignment constants such as `CORE::ALIGNE_TO_256`
-- error enums such as `CORE::errIO`
-- logging helpers
+`OPERATOR` performs GPU work on already-bound `VIEW::Math` tensors.
 
-### VIEW
-
-`VIEW::Shape` stores tensor metadata: dimensions, strides, rank, and dtype.
-
-`VIEW::Math` stores a tensor view: CPU pointer, GPU pointer, offsets, byte count, element count, and shape.
-
-`VIEW::Math` does not allocate memory by itself.
-
-### HANDLER
-
-Handlers own resources:
-
-- `HANDLER::Cpu`: CPU arena allocator
-- `HANDLER::Cuda`: GPU arena allocator
-- `HANDLER::IO`: tensor binding and memory copies
-- `HANDLER::File`: raw file, CSV, and image loading
-- `HANDLER::Workspace`: CUDA stream, cuDNN handle, cuBLASLt handle, scratch buffer
-
-### OPERATOR
-
-Operators read and write `VIEW::Math` GPU memory. Outputs must already exist, have shape, and be bound before launching an operator.
+`MODEL` will later orchestrate layers, parameters, forward propagation, backward propagation, and optimizers.
 
 ## Basic Usage
 
@@ -93,7 +70,7 @@ for(int i = 0; i < 16; i++) {
 io.copyHostToDevice(x);
 ```
 
-## Build And Test
+## Build
 
 Build the library:
 
@@ -101,7 +78,7 @@ Build the library:
 make lib
 ```
 
-Build and run the app readiness harness:
+Build and run `app/src/app.cu`:
 
 ```bash
 make app
@@ -121,7 +98,7 @@ make clean
 
 ## How To Search This Repo
 
-Use `rg` first. It is faster and cleaner than recursive `grep`.
+Use `rg` first.
 
 Find a class:
 
@@ -129,16 +106,16 @@ Find a class:
 rg -n "class .*MatrixMulBias|MatrixMulBias" public/inc lib/src app/src
 ```
 
-Find an operator implementation:
-
-```bash
-rg -n "void OPERATOR::Relu::forward|reluKernel" lib/src/OPERATOR
-```
-
 Find public declarations:
 
 ```bash
 rg -n "class|void|getErr|setOperand|forward|backward" public/inc
+```
+
+Find implementations:
+
+```bash
+rg -n "OPERATOR::Relu|reluKernel" lib/src/OPERATOR
 ```
 
 Find all CUDA kernels:
@@ -165,48 +142,21 @@ List files:
 rg --files
 ```
 
-List only headers:
-
-```bash
-rg --files public/inc
-```
-
-List only operator source files:
-
-```bash
-rg --files lib/src/OPERATOR
-```
-
 ## Documentation
 
 Start here:
 
-- [Project docs index](public/doc/project/index.md)
-- [Full overview](public/doc/project/huge.md)
-- [Core guide](public/doc/project/core.md)
-- [View guide](public/doc/project/view.md)
-- [Handler guide](public/doc/project/handler.md)
-- [Operator guide](public/doc/project/operator.md)
-- [Usage guide](public/doc/project/usage.md)
-- [App test guide](public/doc/project/app-tests.md)
+- [Project manual index](public/doc/project/index.md)
+- [Architecture](public/doc/project/architecture.md)
+- [CORE reference](public/doc/project/CORE/index.md)
+- [VIEW reference](public/doc/project/VIEW/index.md)
+- [HANDLER reference](public/doc/project/HANDLER/index.md)
+- [OPERATOR reference](public/doc/project/OPERATOR/index.md)
+- [MODEL plan](public/doc/project/MODEL/index.md)
+- [Usage](public/doc/project/usage.md)
+- [Full overview](public/doc/project/overview.md)
 
 Public headers also contain Doxygen comments for classes and functions.
-
-## What Should Stay In This README
-
-Keep this README focused on fast orientation. It should answer:
-
-- What is this project?
-- What problem does it solve?
-- How is the repo organized?
-- How do I build it?
-- How do I run the readiness tests?
-- How do I search the code?
-- Where are the deeper docs?
-- What operators and subsystems currently exist?
-- What known behavior matters, such as `Conv2DRelu` currently being convolution plus bias, not activation?
-
-Detailed class-by-class explanation should live in `public/doc/project/*.md` and Doxygen comments, not only in this README.
 
 ## Important Notes
 
@@ -216,3 +166,4 @@ Detailed class-by-class explanation should live in `public/doc/project/*.md` and
 - Raw pointer IO copy overloads copy data only and should not change tensor shape.
 - Most custom F16 kernels assume element counts are multiples of 8 because they use `uint4` vectorized memory access.
 - `Conv2DRelu` currently performs convolution plus bias. It creates a ReLU descriptor but does not call cuDNN activation in `forward()`.
+- `app/src/app.cu` is user application space. It can be used for experiments or tests, but it is not a core framework layer.
