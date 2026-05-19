@@ -67,6 +67,32 @@ private:
   HANDLER::IO *io;
   HANDLER::Workspace *workspace;
 
+  OPERATOR::Normalize *normalizeOp = NULL;
+  OPERATOR::Conv2DRelu *convOp = NULL;
+  OPERATOR::Relu *relu0Op = NULL;
+  OPERATOR::Pool *poolOp = NULL;
+  OPERATOR::MatrixMulBias *fc1Op = NULL;
+  OPERATOR::Relu *relu1Op = NULL;
+  OPERATOR::MatrixMulBias *fc2Op = NULL;
+  OPERATOR::Softmax *softmaxOp = NULL;
+  OPERATOR::CrossEntropy *lossOp = NULL;
+  OPERATOR::SGD *sgdW0Op = NULL;
+  OPERATOR::SGD *sgdB0Op = NULL;
+  OPERATOR::SGD *sgdW1Op = NULL;
+  OPERATOR::SGD *sgdB1Op = NULL;
+  OPERATOR::SGD *sgdW2Op = NULL;
+  OPERATOR::SGD *sgdB2Op = NULL;
+
+  /** @brief Create and attach all reusable operators.
+   *
+   * Operators are allocated once after tensors are bound, then reused by
+   * forward, backward, train, and update.
+   * */
+  void initializeOperators();
+
+  /** @brief Destroy all reusable operators. */
+  void destroyOperators();
+
   /** @brief Relayout batch-dependent tensors for the active batch size.
    * @param batch Number of images in the active batch.
    * */

@@ -79,6 +79,7 @@ real digit classes. The extra columns are padding capacity for vectorized
 | Field Group | Meaning |
 |---|---|
 | `cpu`, `gpu`, `io`, `file`, `workspace` | Runtime handlers and execution resources. |
+| `normalizeOp`, `convOp`, `relu0Op`, `poolOp`, `fc1Op`, `relu1Op`, `fc2Op`, `softmaxOp`, `lossOp`, `sgd*Op` | Reusable operator objects allocated once after tensors are bound. |
 | `filePaths`, `Y` | Dataset path strings and labels. |
 | `x` | Active input batch tensor. |
 | `w0`, `b0`, `w1`, `b1`, `w2`, `b2` | Trainable parameters. |
@@ -101,6 +102,8 @@ void estimate(const char *imagePath, const char *checkpointPath = NULL);
 ## Private Interface
 
 ```cpp
+void initializeOperators();
+void destroyOperators();
 void setActiveBatch(size_t batch);
 void initializeParameters();
 void saveCheckpoint(const char *path);
@@ -289,6 +292,17 @@ advances `offset`, then copies that CPU parameter to GPU.
 **Edge Cases/Assumptions:** Assumes parameter tensors have CPU and GPU memory.
 Failure leaves earlier restored parameters already modified.
 
+## Operator Lifecycle
+
+`DL` pre-creates its operator objects after all tensors are bound. This avoids
+reconstructing cuDNN descriptors, cuBLASLt wrapper objects, loss objects, and SGD
+wrappers every time `forward`, `backward`, `train`, or `update` runs.
+
+The operators still observe the latest tensor shapes because they store
+pointers to `VIEW::Math` objects. `setActiveBatch` and `relayout` mutate those
+tensor layouts in place, so reused operators see the current batch shape when
+their `forward` or `backward` methods set descriptors.
+
 ## Constructor And Destructor
 
 ### `MODEL::DL::DL(size_t imageBatch, const char *csvPath)`
@@ -313,7 +327,8 @@ Failure leaves earlier restored parameters already modified.
 9. Computes convolution, pooling, and flattened feature sizes.
 10. Binds every forward tensor, gradient tensor, parameter tensor, and loss
     tensor.
-11. Calls `initializeParameters()`.
+11. Calls `initializeOperators()` to allocate and attach reusable operators.
+12. Calls `initializeParameters()`.
 
 **Dependencies & Propagation:** This constructor wires the whole lower stack
 together. `File` determines image shape, `IO` allocates all tensors, `Workspace`
@@ -330,7 +345,8 @@ shape and allocation work may be based on invalid or zero metadata.
 
 **Core Meaning:** Release owned runtime resources.
 
-**Implementation Logic:** Deletes `cpu`, `gpu`, `io`, `file`, and `workspace`.
+**Implementation Logic:** Calls `destroyOperators()`, then deletes `cpu`, `gpu`,
+`io`, `file`, and `workspace`.
 
 **Dependencies & Propagation:** The handler destructors release arena memory and
 GPU resources.
@@ -367,8 +383,8 @@ effective batch.
 3. Computes the dataset offset from `imageOffset`; wraps to zero if the batch
    would cross the dataset end.
 4. Runs `forward(offset, batch)`.
-5. Constructs `OPERATOR::CrossEntropy`, attaches `dz2`, `L`, `out`, and `Y`,
-   sets the target batch window, then computes loss and probability gradient.
+5. Reuses `lossOp`, sets the target batch window, then computes loss and
+   probability gradient.
 6. Runs `backward()`.
 7. Runs `update(learningRate)`.
 8. Synchronizes the workspace stream.
@@ -416,6 +432,41 @@ errors from `readImages` and `copyImageToDevice` are not checked before
 classes `0..9` are reported even though softmax has 16 outputs.
 
 ## Private Methods
+
+### `void MODEL::DL::initializeOperators()`
+
+**Type:** Private instance method.
+
+**Core Meaning:** Allocate every reusable operator once and attach its stable
+tensor operands.
+
+**Implementation Logic:** Creates `Normalize`, `Conv2DRelu`, two `Relu`
+operators, `Pool`, two `MatrixMulBias` operators, `Softmax`, `CrossEntropy`, and
+six `SGD` operators. It also sets static convolution/pooling configs and
+attaches backward/gradient operands.
+
+**Dependencies & Propagation:** Depends on all tensors already being shaped and
+bound. The resulting operator pointers are used by `forward`, `backward`,
+`train`, and `update`.
+
+**Edge Cases/Assumptions:** Operators store tensor pointers, not copies. Tensor
+layout changes made later by `relayout` are visible to the same operators.
+
+### `void MODEL::DL::destroyOperators()`
+
+**Type:** Private instance method.
+
+**Core Meaning:** Release all reusable operator objects.
+
+**Implementation Logic:** Deletes all SGD, loss, softmax, linear, activation,
+pooling, convolution, and normalization operator pointers, then resets each
+pointer to `NULL`.
+
+**Dependencies & Propagation:** Called by the destructor before runtime handlers
+are deleted.
+
+**Edge Cases/Assumptions:** Deleting `NULL` is safe, so partially initialized
+operator state can still be cleaned up.
 
 ### `void MODEL::DL::setActiveBatch(size_t batch)`
 
@@ -510,9 +561,8 @@ gradient storage.
 
 **Core Meaning:** Apply one SGD step to every trainable tensor.
 
-**Implementation Logic:** Constructs `OPERATOR::SGD` objects for each
-weight/gradient and bias/gradient pair, then calls `update(learningRate)` on
-all of them.
+**Implementation Logic:** Reuses the six `OPERATOR::SGD` objects created during
+`initializeOperators()`, then calls `update(learningRate)` on all of them.
 
 **Dependencies & Propagation:** Mutates `w0`, `b0`, `w1`, `b1`, `w2`, and `b2`.
 All future forward passes use the updated parameters.

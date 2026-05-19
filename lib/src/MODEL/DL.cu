@@ -140,11 +140,13 @@ MODEL::DL::DL(size_t imageBatch, const char *csvPath)
   bindGpu(this->io, this->db2, MODEL_OUTPUT_CLASSES, 0, 0, 0, 1, VIEW::F16);
 
   bindBoth(this->io, this->L, 1, 0, 0, 0, 1, VIEW::FLOAT);
+  this->initializeOperators();
   this->initializeParameters();
 }
 
 MODEL::DL::~DL()
 {
+  this->destroyOperators();
   delete this->cpu;
   delete this->gpu;
   delete this->io;
@@ -155,6 +157,76 @@ MODEL::DL::~DL()
 size_t MODEL::DL::getImageBatch() const
 {
   return this->imageBatch;
+}
+
+void MODEL::DL::initializeOperators()
+{
+  this->normalizeOp = new OPERATOR::Normalize(*this->workspace, this->x, this->x);
+
+  this->convOp = new OPERATOR::Conv2DRelu(*this->workspace, this->z0, this->x, this->w0, this->b0);
+  this->convOp->setConfig(1, 1, 1, 1, 1, 1);
+  this->convOp->setGradOperand(this->x, this->dw0, this->db0, this->dz0);
+
+  this->relu0Op = new OPERATOR::Relu(*this->workspace, this->a0, this->z0);
+  this->relu0Op->setGradOperand(this->dz0, this->da0);
+
+  this->poolOp = new OPERATOR::Pool(*this->workspace, this->p, this->a0);
+  this->poolOp->setConfig(2, 2, 0, 0, 2, 2);
+  this->poolOp->setGradOperand(this->da0, this->dp);
+
+  this->fc1Op = new OPERATOR::MatrixMulBias(*this->workspace, this->z1, this->p, this->w1, this->b1);
+  this->fc1Op->setGradOperand(this->dp, this->dw1, this->db1, this->dz1);
+
+  this->relu1Op = new OPERATOR::Relu(*this->workspace, this->a1, this->z1);
+  this->relu1Op->setGradOperand(this->dz1, this->da1);
+
+  this->fc2Op = new OPERATOR::MatrixMulBias(*this->workspace, this->z2, this->a1, this->w2, this->b2);
+  this->fc2Op->setGradOperand(this->da1, this->dw2, this->db2, this->dz2);
+
+  this->softmaxOp = new OPERATOR::Softmax(*this->workspace, this->out, this->z2);
+  this->lossOp = new OPERATOR::CrossEntropy(*this->workspace, this->dz2, this->L, this->out, this->Y);
+
+  this->sgdW0Op = new OPERATOR::SGD(*this->workspace, this->w0, this->dw0);
+  this->sgdB0Op = new OPERATOR::SGD(*this->workspace, this->b0, this->db0);
+  this->sgdW1Op = new OPERATOR::SGD(*this->workspace, this->w1, this->dw1);
+  this->sgdB1Op = new OPERATOR::SGD(*this->workspace, this->b1, this->db1);
+  this->sgdW2Op = new OPERATOR::SGD(*this->workspace, this->w2, this->dw2);
+  this->sgdB2Op = new OPERATOR::SGD(*this->workspace, this->b2, this->db2);
+}
+
+void MODEL::DL::destroyOperators()
+{
+  delete this->sgdB2Op;
+  delete this->sgdW2Op;
+  delete this->sgdB1Op;
+  delete this->sgdW1Op;
+  delete this->sgdB0Op;
+  delete this->sgdW0Op;
+  delete this->lossOp;
+  delete this->softmaxOp;
+  delete this->fc2Op;
+  delete this->relu1Op;
+  delete this->fc1Op;
+  delete this->poolOp;
+  delete this->relu0Op;
+  delete this->convOp;
+  delete this->normalizeOp;
+
+  this->sgdB2Op = NULL;
+  this->sgdW2Op = NULL;
+  this->sgdB1Op = NULL;
+  this->sgdW1Op = NULL;
+  this->sgdB0Op = NULL;
+  this->sgdW0Op = NULL;
+  this->lossOp = NULL;
+  this->softmaxOp = NULL;
+  this->fc2Op = NULL;
+  this->relu1Op = NULL;
+  this->fc1Op = NULL;
+  this->poolOp = NULL;
+  this->relu0Op = NULL;
+  this->convOp = NULL;
+  this->normalizeOp = NULL;
 }
 
 void MODEL::DL::setActiveBatch(size_t batch)
@@ -199,34 +271,24 @@ void MODEL::DL::forward(size_t batchOffset, size_t batch)
   this->setActiveBatch(batch);
   this->file->pullGpuImage(this->x, batch, batchOffset);
 
-  OPERATOR::Normalize normalize(*this->workspace, this->x, this->x);
-  normalize.normByScalar(255.0f);
+  this->normalizeOp->normByScalar(255.0f);
 
-  OPERATOR::Conv2DRelu conv(*this->workspace, this->z0, this->x, this->w0, this->b0);
-  conv.setConfig(1, 1, 1, 1, 1, 1);
-  conv.forward();
+  this->convOp->forward();
 
-  OPERATOR::Relu relu0(*this->workspace, this->a0, this->z0);
-  relu0.forward();
+  this->relu0Op->forward();
 
-  OPERATOR::Pool pool(*this->workspace, this->p, this->a0);
-  pool.setConfig(2, 2, 0, 0, 2, 2);
-  pool.maxForward();
+  this->poolOp->maxForward();
 
   int flat = MODEL_CONV_FILTERS * (this->file->getImageHeight() / MODEL_POOL_WINDOW) * (this->file->getImageWidth() / MODEL_POOL_WINDOW);
   relayout(this->p, (int)batch, flat, 0, 0, 2, VIEW::F16);
 
-  OPERATOR::MatrixMulBias fc1(*this->workspace, this->z1, this->p, this->w1, this->b1);
-  fc1.forward();
+  this->fc1Op->forward();
 
-  OPERATOR::Relu relu1(*this->workspace, this->a1, this->z1);
-  relu1.forward();
+  this->relu1Op->forward();
 
-  OPERATOR::MatrixMulBias fc2(*this->workspace, this->z2, this->a1, this->w2, this->b2);
-  fc2.forward();
+  this->fc2Op->forward();
 
-  OPERATOR::Softmax softmax(*this->workspace, this->out, this->z2);
-  softmax.forward();
+  this->softmaxOp->forward();
 }
 
 void MODEL::DL::backward()
@@ -236,52 +298,31 @@ void MODEL::DL::backward()
   int poolW = this->file->getImageWidth() / MODEL_POOL_WINDOW;
   int flat = MODEL_CONV_FILTERS * poolH * poolW;
 
-  OPERATOR::MatrixMulBias fc2(*this->workspace, this->z2, this->a1, this->w2, this->b2);
-  fc2.setGradOperand(this->da1, this->dw2, this->db2, this->dz2);
-  fc2.backward();
+  this->fc2Op->backward();
 
-  OPERATOR::Relu relu1(*this->workspace, this->a1, this->z1);
-  relu1.setGradOperand(this->dz1, this->da1);
-  relu1.backward();
+  this->relu1Op->backward();
 
   relayout(this->p, (int)batch, flat, 0, 0, 2, VIEW::F16);
   relayout(this->dp, (int)batch, flat, 0, 0, 2, VIEW::F16);
-  OPERATOR::MatrixMulBias fc1(*this->workspace, this->z1, this->p, this->w1, this->b1);
-  fc1.setGradOperand(this->dp, this->dw1, this->db1, this->dz1);
-  fc1.backward();
+  this->fc1Op->backward();
 
   relayout(this->p, (int)batch, MODEL_CONV_FILTERS, poolH, poolW, 4, VIEW::F16);
   relayout(this->dp, (int)batch, MODEL_CONV_FILTERS, poolH, poolW, 4, VIEW::F16);
-  OPERATOR::Pool pool(*this->workspace, this->p, this->a0);
-  pool.setConfig(2, 2, 0, 0, 2, 2);
-  pool.setGradOperand(this->da0, this->dp);
-  pool.maxBackward();
+  this->poolOp->maxBackward();
 
-  OPERATOR::Relu relu0(*this->workspace, this->a0, this->z0);
-  relu0.setGradOperand(this->dz0, this->da0);
-  relu0.backward();
+  this->relu0Op->backward();
 
-  OPERATOR::Conv2DRelu conv(*this->workspace, this->z0, this->x, this->w0, this->b0);
-  conv.setConfig(1, 1, 1, 1, 1, 1);
-  conv.setGradOperand(this->x, this->dw0, this->db0, this->dz0);
-  conv.backward();
+  this->convOp->backward();
 }
 
 void MODEL::DL::update(float learningRate)
 {
-  OPERATOR::SGD sgdW0(*this->workspace, this->w0, this->dw0);
-  OPERATOR::SGD sgdB0(*this->workspace, this->b0, this->db0);
-  OPERATOR::SGD sgdW1(*this->workspace, this->w1, this->dw1);
-  OPERATOR::SGD sgdB1(*this->workspace, this->b1, this->db1);
-  OPERATOR::SGD sgdW2(*this->workspace, this->w2, this->dw2);
-  OPERATOR::SGD sgdB2(*this->workspace, this->b2, this->db2);
-
-  sgdW0.update(learningRate);
-  sgdB0.update(learningRate);
-  sgdW1.update(learningRate);
-  sgdB1.update(learningRate);
-  sgdW2.update(learningRate);
-  sgdB2.update(learningRate);
+  this->sgdW0Op->update(learningRate);
+  this->sgdB0Op->update(learningRate);
+  this->sgdW1Op->update(learningRate);
+  this->sgdB1Op->update(learningRate);
+  this->sgdW2Op->update(learningRate);
+  this->sgdB2Op->update(learningRate);
 }
 
 static size_t tensorBytes(VIEW::Math& math)
@@ -425,9 +466,8 @@ void MODEL::DL::train(size_t iterations, float learningRate, size_t checkpointEv
 
     this->forward(offset, batch);
 
-    OPERATOR::CrossEntropy lossOp(*this->workspace, this->dz2, this->L, this->out, this->Y);
-    lossOp.setTargetBatch((int)batch, (int)offset);
-    lossOp.forwardBackward();
+    this->lossOp->setTargetBatch((int)batch, (int)offset);
+    this->lossOp->forwardBackward();
 
     this->backward();
     this->update(learningRate);
