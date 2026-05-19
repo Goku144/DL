@@ -72,7 +72,7 @@ OPERATOR
   uses VIEW tensors and HANDLER::Workspace
 
 MODEL
-  future layer/model abstraction built on OPERATOR + HANDLER + VIEW
+  orchestrates handlers, tensors, operators, parameters, checkpoints, and model workflows
 ```
 
 Operators should not allocate user tensors. They should operate on already-shaped, already-bound `VIEW::Math` objects.
@@ -140,21 +140,26 @@ io.copyHostToDevice(x, rawHostPtr, n, VIEW::F16);
 
 The raw pointer overloads copy data only. They should not change tensor shape.
 
-## Where MODEL Will Fit
+## Where MODEL Fits
 
-`MODEL` is planned as the future high-level layer/model API.
+`MODEL` now contains `MODEL::DL`, a concrete model class built directly on the
+lower runtime layers.
 
-Expected responsibilities:
+Current responsibilities:
 
-- own layer objects
-- connect operator outputs to later inputs
+- own or connect model tensors
+- own the runtime handlers needed by the model
+- load CSV metadata and image data
+- connect operator outputs to later operator inputs
 - run forward propagation
 - run backward propagation
 - manage trainable parameters and gradients
 - coordinate optimizers
-- hide repetitive tensor wiring without hiding memory ownership completely
+- save and load raw checkpoints
+- run single-image inference
 
-`MODEL` should be built after the lower layers are stable.
+Future generic layer/model APIs can be built on top of the current concrete
+`MODEL::DL` behavior.
 
 ---
 

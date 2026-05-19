@@ -21,7 +21,7 @@ OPERATOR
   GPU math operations
 
 MODEL
-  future deep-learning abstraction, not implemented yet
+  concrete model orchestration plus future abstraction layer
 ```
 
 ## Why This Shape
@@ -80,7 +80,9 @@ It assumes:
 
 ## MODEL In One Sentence
 
-`MODEL` is the planned future layer/model API. It should wrap the lower-level pieces into trainable layers and model propagation.
+`MODEL` currently contains `MODEL::DL`, which wraps the lower-level pieces into
+a concrete trainable digit-classifier pipeline with dataset loading,
+forward/backward propagation, SGD updates, checkpointing, and inference.
 
 ## Function Declaration vs Implementation
 
@@ -146,7 +148,7 @@ Binding calculates memory size from the current shape.
 | How do tensors work? | [VIEW](VIEW/index.md) |
 | How does memory/copying work? | [HANDLER](HANDLER/index.md) |
 | What does each operator do? | [OPERATOR](OPERATOR/index.md) |
-| Where will layers/models go? | [MODEL](MODEL/index.md) |
+| How does the current model work? | [MODEL](MODEL/index.md) |
 | How do I write a tiny program? | [Usage](usage.md) |
 
 ---

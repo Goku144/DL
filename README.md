@@ -20,7 +20,7 @@ OPERATOR/
   GPU math operators.
 
 MODEL/
-  Future model/layer abstraction. Not implemented yet.
+  Current model orchestration, including MODEL::DL.
 ```
 
 In the repo:
@@ -30,6 +30,7 @@ public/inc/CORE             Public CORE headers
 public/inc/VIEW             Public VIEW headers
 public/inc/HANDLER          Public HANDLER headers
 public/inc/OPERATOR         Public OPERATOR headers
+public/inc/MODEL            Public MODEL headers
 lib/src                     Implementations and CUDA kernels
 app/src/app.cu              User application / experiment entrypoint
 public/doc/project          Project manual
@@ -46,7 +47,8 @@ Makefile                    Build, run, dataset, and clean targets
 
 `OPERATOR` performs GPU work on already-bound `VIEW::Math` tensors.
 
-`MODEL` will later orchestrate layers, parameters, forward propagation, backward propagation, and optimizers.
+`MODEL` orchestrates handlers, tensors, operators, parameters, training,
+checkpointing, and inference through `MODEL::DL`.
 
 ## Basic Usage
 
@@ -152,7 +154,7 @@ Start here:
 - [VIEW reference](public/doc/project/VIEW/index.md)
 - [HANDLER reference](public/doc/project/HANDLER/index.md)
 - [OPERATOR reference](public/doc/project/OPERATOR/index.md)
-- [MODEL plan](public/doc/project/MODEL/index.md)
+- [MODEL reference](public/doc/project/MODEL/index.md)
 - [Usage](public/doc/project/usage.md)
 - [Full overview](public/doc/project/overview.md)
 

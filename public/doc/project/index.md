@@ -23,7 +23,7 @@ OPERATOR/
   GPU operators that consume and produce VIEW::Math tensors.
 
 MODEL/
-  Planned future layer/model abstraction. Not implemented yet.
+  Current model orchestration, including MODEL::DL.
 ```
 
 ## Documentation Map
@@ -35,7 +35,7 @@ MODEL/
 | 3 | [VIEW](VIEW/index.md) | Shape and tensor view objects. |
 | 4 | [HANDLER](HANDLER/index.md) | Memory, data movement, files, and workspace classes. |
 | 5 | [OPERATOR](OPERATOR/index.md) | Every operator class, operand contract, and function. |
-| 6 | [MODEL](MODEL/index.md) | Future model/layer direction. |
+| 6 | [MODEL](MODEL/index.md) | Current model orchestration and future model/layer direction. |
 | 7 | [Usage](usage.md) | Minimal practical usage recipe. |
 | 8 | [Full Overview](overview.md) | Long-form narrative overview. |
 
