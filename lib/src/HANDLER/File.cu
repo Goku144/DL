@@ -36,6 +36,19 @@ static char *joinRootPath(const char *rootPath, const char *path)
   return joined;
 }
 
+static bool sameLayout(VIEW::Math& math, VIEW::Shape& layout)
+{
+  VIEW::Shape& current = math.getLayout();
+  if(current.getRank() != layout.getRank()) return false;
+  if(current.getDType() != layout.getDType()) return false;
+
+  for(int index = 0; index < layout.getRank(); index++)
+    if(current.getDim(index) != layout.getDim(index))
+      return false;
+
+  return true;
+}
+
 static const char *getFileErrorMessage(CORE::errFile err)
 {
   if(err == CORE::fileSuccess) return "File success";
@@ -119,13 +132,13 @@ void HANDLER::File::read(VIEW::Math& dst, const char *path, VIEW::DType dtype)
 
 void HANDLER::File::write(VIEW::Math& src, const char *path)
 {
-  if(path == NULL || this->io == NULL)
+  if(path == NULL || this->io == NULL || src.getCpuPtr() == NULL)
   {
     this->err = CORE::fileErrNull;
     return;
   }
 
-  int fd = open(path, O_RDONLY);
+  int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
   if(fd < 0)
   {
     this->err = CORE::fileErrOpen;
@@ -133,15 +146,21 @@ void HANDLER::File::write(VIEW::Math& src, const char *path)
   }
 
   size_t offset = 0, fileSize = src.getCount() * src.getLayout().getDType();
-  while (true)
+  while (offset < fileSize)
   {
-    ssize_t n = ::read(fd, (uint8_t *) src.getCpuPtr() + offset, fileSize - offset);
+    ssize_t n = ::write(fd, (uint8_t *) src.getCpuPtr() + offset, fileSize - offset);
     if (n < 0)
     {
+      close(fd);
       this->err = CORE::fileErrWrite;
       return;
     }
-    if(n == 0) break;
+    if(n == 0)
+    {
+      close(fd);
+      this->err = CORE::fileErrWrite;
+      return;
+    }
     offset += n;
   }
   
@@ -512,16 +531,28 @@ void HANDLER::File::pullGpuImage(VIEW::Math& dst, size_t n, size_t offset)
   size_t imageSize = (size_t) this->imageHeight * this->imageWidth * this->imageChannel;
   int dims[VIEW::MAX_RANK] = {(int)n, this->imageChannel, this->imageHeight, this->imageWidth};
   VIEW::Shape layout(dims, 4, VIEW::F16);
-  dst.setLayout(layout);
 
-  io->bindGpu(dst);
-  if(io->peekErr() != CORE::ioSuccess)
+  size_t count = n * imageSize;
+  size_t requiredBytes = CORE::ALIGNE(count * VIEW::F16, CORE::ALIGNE_TO_256);
+  bool canReuse = dst.getGpuPtr() != NULL && dst.getBytes() >= requiredBytes;
+  if(!canReuse)
   {
-    this->err = CORE::fileErrIO;
-    return;
+    dst.setLayout(layout);
+    io->bindGpu(dst);
+    if(io->peekErr() != CORE::ioSuccess)
+    {
+      this->err = CORE::fileErrIO;
+      return;
+    }
+  }
+  else
+  {
+    if(!sameLayout(dst, layout))
+      dst.setLayout(layout);
+    dst.setCount(count);
   }
 
-  io->copyDeviceToDevice(dst, (__half *)this->imageGpuPtr + offset * imageSize, n * imageSize, VIEW::F16);
+  io->copyDeviceToDevice(dst, (__half *)this->imageGpuPtr + offset * imageSize, count, VIEW::F16);
   if(io->peekErr() != CORE::ioSuccess)
   {
     this->err = CORE::fileErrIO;

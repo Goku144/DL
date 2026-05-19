@@ -3,7 +3,7 @@
 > **Reading Path**  
 > Home: [Project Manual](../index.md) | Previous: [VIEW](../VIEW/index.md) | Next: [OPERATOR](../OPERATOR/index.md)
 
-`HANDLER` owns runtime resources. `VIEW` describes tensors, but `HANDLER` allocates memory, binds tensors, copies data, loads files, and owns execution handles.
+`CORE` owns runtime resources. `VIEW` describes tensors, but `HANDLER` allocates memory, binds tensors, copies data, loads files, and owns execution handles.
 
 ## Classes
 

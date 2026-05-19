@@ -1,17 +1,95 @@
 layer 0
  image(64, 1, H, W)
- Normalize
-layer 1 
+ x = Normalize(image)
+
+layer 1
  z0 = conv(x, kerW0) + b0
  A0 = ReLU(z0)
-kerW0 is (3x3)
+ kerW0 is (3x3)
+
 layer 1.5
  p = pool(A0)
  poolMax (2x2)
+
 layer 2
- z1 = p * W1 + b1
+ p_flat = flatten(p)
+ z1 = p_flat @ W1 + b1
  A1 = ReLU(z1)
+
 layer 3
- z2 = A1 * W2 + b2
+ z2 = A1 @ W2 + b2
  out = softmax(z2)
-LostFunc(out, Y)
+
+LossFunc(out, Y)
+
+
+backchain
+
+layer 3
+ dz2 = out - Y
+
+ dW2 = A1.T @ dz2
+ # @ means matrix multiplication
+
+ db2 = sum_rows(dz2)
+ # sum over batch rows only
+ # db2 shape is same as b2
+
+ dA1 = dz2 @ W2.T
+ # @ means matrix multiplication
+
+
+layer 2
+ dz1 = dA1 .* ReLU'(z1)
+ # .* means element-wise multiplication
+
+ dW1 = p_flat.T @ dz1
+ # @ means matrix multiplication
+
+ db1 = sum_rows(dz1)
+ # sum over batch rows only
+ # db1 shape is same as b1
+
+ dp_flat = dz1 @ W1.T
+ # @ means matrix multiplication
+
+ dp = reshape(dp_flat, shape_of_p)
+
+
+layer 1.5
+ dA0 = poolMax_backward(dp, A0)
+ # not matrix multiplication
+ # not element-wise multiplication
+ # gradient goes only to the max element inside each 2x2 pool window
+
+
+layer 1
+ dz0 = dA0 .* ReLU'(z0)
+ # .* means element-wise multiplication
+
+ dkerW0 = conv_backward_filter(x, dz0)
+ # for every filter weight:
+ # dkerW0[f,c,kh,kw] =
+ #   sum over batch, output height, output width of
+ #   x[n,c,oh+kh,ow+kw] * dz0[n,f,oh,ow]
+
+ db0 = sum_over_batch_height_width(dz0)
+ # db0[f] = sum over n, oh, ow of dz0[n,f,oh,ow]
+ # db0 shape is same as b0
+
+ dx = conv_backward_input(kerW0, dz0)
+
+
+layer 0
+ dimage = Normalize_backward(dx)
+
+
+update
+ kerW0 = kerW0 - lr * dkerW0
+ b0    = b0    - lr * db0
+
+ W1 = W1 - lr * dW1
+ b1 = b1 - lr * db1
+
+ W2 = W2 - lr * dW2
+ b2 = b2 - lr * db2

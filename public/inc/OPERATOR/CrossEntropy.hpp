@@ -10,8 +10,9 @@ namespace OPERATOR
  * @brief Fused cross-entropy loss and probability gradient.
  *
  * CrossEntropy expects probability rows and class-index targets. It writes a
- * single FLOAT loss and an F16 dProb tensor. Class count must be a multiple of
- * 8 because the kernel reads/writes uint4 chunks.
+ * single FLOAT loss and an F16 dProb tensor. The fastest path is optimized for
+ * 16 output columns, which can be used as 10 real digit classes plus 6 padding
+ * columns.
  */
 class __align__(CORE::ALIGNE_TO_256) CrossEntropy
 {
@@ -21,6 +22,8 @@ private:
   VIEW::Math *loss;
   VIEW::Math *dProb;
   HANDLER::Workspace *workspace;
+  int targetBatchSize = 0;
+  int targetOffset = 0;
 
 public:
   /** @brief Create an unbound CrossEntropy operator. 
@@ -67,6 +70,12 @@ public:
    * @param target Input class labels. 
    * */
   void setOperand(VIEW::Math& dProb, VIEW::Math& loss, VIEW::Math& prob, VIEW::Math& target);
+
+  /** @brief Select how many target rows to read and where to start.
+   * @param batchSize Number of batch rows to process. Use 0 to follow prob rows.
+   * @param offset Starting label index inside the full target tensor.
+   * */
+  void setTargetBatch(int batchSize, int offset);
 
   /** @brief Launch loss and dProb computation. 
    * 

@@ -1,3 +1,4 @@
+
 #if !defined(CORE_STATE_HPP)
 #define CORE_STATE_HPP
 
@@ -27,6 +28,14 @@ namespace CORE
     MEMORY_256_MB = 2 * MEMORY_128_MB,
     MEMORY_512_MB = 2 * MEMORY_256_MB,
     MEMORY_1_GB = 2 * MEMORY_512_MB,
+  };
+
+  enum ModelParam
+  {
+    MODEL_CPU_MEMORY_DEFAULT = MEMORY_128_MB,
+    MODEL_GPU_MEMORY_DEFAULT = MEMORY_128_MB,
+    MODEL_SCRATCH_MEMORY_DEFAULT = MEMORY_512_MB,
+    MODEL_IMAGE_BATCH_DEFAULT = 64,
   };
 
   /** @brief Error codes stored by HANDLER::IO and returned by Cpu/Cuda allocation. */
