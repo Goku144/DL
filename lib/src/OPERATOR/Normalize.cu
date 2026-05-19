@@ -33,9 +33,10 @@ static __device__ __forceinline__ __half2 helperKernelHalf2Norm(half2 x, float s
   return __hmul2(x, norm_rcp);
 }
 
-__global__ void normKernelByScalar(uint4 * __restrict__ OUT, const uint4 * __restrict__ IN, float scalar)
+__global__ void normKernelByScalar(uint4 * __restrict__ OUT, const uint4 * __restrict__ IN, float scalar, int N8)
 {
   int index = threadIdx.x + blockDim.x * blockIdx.x;
+  if(index >= N8) return;
 
   float s = scalar;
   uint4 in = IN[index];
@@ -45,6 +46,15 @@ __global__ void normKernelByScalar(uint4 * __restrict__ OUT, const uint4 * __res
   out.z = helperKernelHalf2ToU32(helperKernelHalf2Norm(helperKernelU32ToHalf2(in.z), s));
   out.w = helperKernelHalf2ToU32(helperKernelHalf2Norm(helperKernelU32ToHalf2(in.w), s));
   OUT[index] = out;
+}
+
+__global__ void normKernelByScalarTail(__half * __restrict__ OUT, const __half * __restrict__ IN, float scalar, int N)
+{
+  int index = threadIdx.x + blockDim.x * blockIdx.x;
+  if(index >= N) return;
+
+  float a_f = __half2float(IN[index]);
+  OUT[index] = __float2half(a_f * (1.0f / scalar));
 }
 
 OPERATOR::Normalize::Normalize(HANDLER::Workspace& workspace)
@@ -80,6 +90,18 @@ void OPERATOR::Normalize::normByScalar(float scalar)
   int N = this->in->getCount();
   int N8 = N / 8;
   int threads = N <= 256 ? 256 : N <= 512 ? 512 : 1024;
-  int blocks = cuda::ceil_div(N8, threads);
-  normKernelByScalar<<<blocks, threads, 0, this->workspace->getStream()>>>((uint4 *) this->out->getGpuPtr(), (uint4 *) this->in->getGpuPtr(), scalar);
+
+  if(N8 > 0)
+  {
+    int blocks = cuda::ceil_div(N8, threads);
+    normKernelByScalar<<<blocks, threads, 0, this->workspace->getStream()>>>((uint4 *) this->out->getGpuPtr(), (uint4 *) this->in->getGpuPtr(), scalar, N8);
+  }
+
+  int tailStart = N8 * 8;
+  if(tailStart < N)
+  {
+    int tailN = N - tailStart;
+    int blocks = cuda::ceil_div(tailN, threads);
+    normKernelByScalarTail<<<blocks, threads, 0, this->workspace->getStream()>>>((__half *)this->out->getGpuPtr() + tailStart, (const __half *)this->in->getGpuPtr() + tailStart, scalar, tailN);
+  }
 }

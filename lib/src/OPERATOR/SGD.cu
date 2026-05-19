@@ -47,6 +47,14 @@ __global__ void sgdKernelUpdate(uint4 * __restrict__ WEIGHT, const uint4 * __res
   WEIGHT[index] = out;
 }
 
+__global__ void sgdKernelUpdateTail(__half * __restrict__ WEIGHT, const __half * __restrict__ GRAD, float lr, int N)
+{
+  int index = threadIdx.x + blockDim.x * blockIdx.x;
+  if(index >= N) return;
+
+  WEIGHT[index] = __hfma(GRAD[index], __float2half_rn(-lr), WEIGHT[index]);
+}
+
 OPERATOR::SGD::SGD(HANDLER::Workspace& workspace)
 {
   this->workspace = &workspace;
@@ -83,6 +91,20 @@ void OPERATOR::SGD::update(float lr)
   int N = this->weight->getCount();
   int N8 = N / 8;
   int threads = N <= 256 ? 256 : N <= 512 ? 512 : 1024;
-  int blocks = cuda::ceil_div(N8, threads);
-  sgdKernelUpdate<<<blocks, threads, 0, this->workspace->getStream()>>>((uint4 *)this->weight->getGpuPtr(), (const uint4 *)this->grad->getGpuPtr(), lr, N8);
+
+  if(N8 > 0)
+  {
+    int blocks = cuda::ceil_div(N8, threads);
+    sgdKernelUpdate<<<blocks, threads, 0, this->workspace->getStream()>>>((uint4 *)this->weight->getGpuPtr(), (const uint4 *)this->grad->getGpuPtr(), lr, N8);
+  }
+
+  int tailStart = N8 * 8;
+  if(tailStart < N)
+  {
+    int tailN = N - tailStart;
+    int blocks = cuda::ceil_div(tailN, threads);
+    __half *wTail = (__half *)this->weight->getGpuPtr() + tailStart;
+    const __half *gTail = (const __half *)this->grad->getGpuPtr() + tailStart;
+    sgdKernelUpdateTail<<<blocks, threads, 0, this->workspace->getStream()>>>(wTail, gTail, lr, tailN);
+  }
 }

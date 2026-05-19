@@ -65,7 +65,7 @@ int VIEW::Shape::getMaxRank() const
 
 int VIEW::Shape::getSuperPosition(int i, int j, int k, int l) const
 {
-  return (i * this->strides[0] + j * this->strides[1] + k * this->strides[0] + l * this->strides[0]) * this->dtype; 
+  return (i * this->strides[0] + j * this->strides[1] + k * this->strides[2] + l * this->strides[3]) * this->dtype; 
 }
 
 void VIEW::Shape::setShape(int dims[VIEW::MAX_RANK], int rank, VIEW::DType dtype, const char* file, int line)

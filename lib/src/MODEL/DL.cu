@@ -4,7 +4,10 @@
 #include <cuda_runtime_api.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 
 static constexpr int MODEL_CONV_FILTERS = 16;
@@ -55,6 +58,13 @@ static __global__ void zeroHalfKernel(__half *dst, size_t count)
   size_t index = blockIdx.x * blockDim.x + threadIdx.x;
   if(index >= count) return;
   dst[index] = __float2half_rn(0.0f);
+}
+
+static __global__ void halfToFloatKernel(float *dst, const __half *src, size_t count)
+{
+  size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+  if(index >= count) return;
+  dst[index] = __half2float(src[index]);
 }
 
 static void initParam(VIEW::Math& math, float scale, unsigned int seed)
@@ -284,19 +294,6 @@ static size_t checkpointBytes(VIEW::Math& w0, VIEW::Math& b0, VIEW::Math& w1, VI
   return tensorBytes(w0) + tensorBytes(b0) + tensorBytes(w1) + tensorBytes(b1) + tensorBytes(w2) + tensorBytes(b2);
 }
 
-static bool appendTensor(HANDLER::IO *io, VIEW::Math& checkpoint, size_t& offset, VIEW::Math& math)
-{
-  io->clearErr();
-  io->copyDeviceToHost(math);
-  if(io->peekErr() != CORE::ioSuccess) return false;
-
-  size_t bytes = tensorBytes(math);
-  io->clearErr();
-  io->copyHostToHost((uint8_t *)checkpoint.getCpuPtr() + offset, math, math.getCount(), math.getLayout().getDType());
-  if(io->peekErr() != CORE::ioSuccess) return false;
-  offset += bytes;
-  return true;
-}
 
 static bool restoreTensor(HANDLER::IO *io, VIEW::Math& checkpoint, size_t& offset, VIEW::Math& math)
 {
@@ -316,41 +313,66 @@ void MODEL::DL::saveCheckpoint(const char *path)
 {
   mkdir("public/checkpoints", 0755);
   size_t bytes = checkpointBytes(this->w0, this->b0, this->w1, this->b1, this->w2, this->b2);
-  int dims[VIEW::MAX_RANK] = {(int)bytes, 0, 0, 0};
-  VIEW::Shape layout(dims, 1, VIEW::CHAR);
-  VIEW::Math checkpoint(layout);
-  this->io->clearErr();
-  this->io->bindCpu(checkpoint);
-  if(this->io->peekErr() != CORE::ioSuccess)
+
+  uint8_t *cpuBuf = (uint8_t *)malloc(bytes);
+  if(cpuBuf == NULL)
   {
     CORE::logWarn(__FILE__, __LINE__, "Checkpoint CPU buffer allocation failed: %s", path);
     return;
   }
 
+  cudaStreamSynchronize(this->workspace->getStream());
+
   size_t offset = 0;
   bool ok = true;
-  ok &= appendTensor(this->io, checkpoint, offset, this->w0);
-  ok &= appendTensor(this->io, checkpoint, offset, this->b0);
-  ok &= appendTensor(this->io, checkpoint, offset, this->w1);
-  ok &= appendTensor(this->io, checkpoint, offset, this->b1);
-  ok &= appendTensor(this->io, checkpoint, offset, this->w2);
-  ok &= appendTensor(this->io, checkpoint, offset, this->b2);
+
+  auto copyParam = [&](VIEW::Math &param) -> bool
+  {
+    size_t paramBytes = tensorBytes(param);
+    if(offset + paramBytes > bytes) return false;
+    if(cudaMemcpy(cpuBuf + offset, param.getGpuPtr(), paramBytes, cudaMemcpyDeviceToHost) != cudaSuccess) return false;
+    offset += paramBytes;
+    return true;
+  };
+
+  ok &= copyParam(this->w0);
+  ok &= copyParam(this->b0);
+  ok &= copyParam(this->w1);
+  ok &= copyParam(this->b1);
+  ok &= copyParam(this->w2);
+  ok &= copyParam(this->b2);
 
   if(!ok)
   {
     CORE::logWarn(__FILE__, __LINE__, "Checkpoint pack failed: %s", path);
+    free(cpuBuf);
     return;
   }
 
-  this->file->clearErr();
-  this->file->write(checkpoint, path);
-  if(this->file->peekErr() != CORE::fileSuccess)
+  int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if(fd < 0)
   {
-    this->file->info(CORE::WARN, __FILE__, __LINE__);
-    this->file->clearErr();
+    CORE::logWarn(__FILE__, __LINE__, "Checkpoint open failed: %s", path);
+    free(cpuBuf);
     return;
   }
 
+  size_t written = 0;
+  while(written < bytes)
+  {
+    ssize_t n = ::write(fd, cpuBuf + written, bytes - written);
+    if(n <= 0)
+    {
+      CORE::logWarn(__FILE__, __LINE__, "Checkpoint write failed: %s", path);
+      close(fd);
+      free(cpuBuf);
+      return;
+    }
+    written += n;
+  }
+
+  close(fd);
+  free(cpuBuf);
   CORE::logInfo(__FILE__, __LINE__, "Saved checkpoint: %s", path);
 }
 
@@ -414,42 +436,58 @@ void MODEL::DL::train(size_t iterations, float learningRate, size_t checkpointEv
     bool shouldReport = checkpointEvery > 0 && ((iter + 1) % checkpointEvery == 0);
     if(shouldReport || iter + 1 == iterations)
     {
-      VIEW::Math outCpu;
-      this->io->copyHalfToCpuFloat(outCpu, this->out);
-      this->io->copyDeviceToHost(this->L);
-
-      float *prob = (float *)outCpu.getCpuPtr();
-      uint8_t *labels = (uint8_t *)this->Y.getCpuPtr();
-      size_t correct = 0;
-      float confidenceSum = 0.0f;
-
-      for(size_t row = 0; row < batch; row++)
+      size_t outCount = batch * MODEL_OUTPUT_CLASSES;
+      float *prob = (float *)malloc(outCount * sizeof(float));
+      if(prob != NULL)
       {
-        int pred = 0;
-        float best = prob[row * MODEL_OUTPUT_CLASSES];
-        for(int cls = 1; cls < MODEL_REAL_CLASSES; cls++)
+        float *deviceFloat = NULL;
+        cudaMalloc(&deviceFloat, outCount * sizeof(float));
+        if(deviceFloat != NULL)
         {
-          float p = prob[row * MODEL_OUTPUT_CLASSES + cls];
-          if(p > best)
-          {
-            best = p;
-            pred = cls;
-          }
+          int threads = 256;
+          int blocks = (int)((outCount + threads - 1) / threads);
+          halfToFloatKernel<<<blocks, threads, 0, this->workspace->getStream()>>>(deviceFloat, (const __half *)this->out.getGpuPtr(), outCount);
+          cudaStreamSynchronize(this->workspace->getStream());
+          cudaMemcpy(prob, deviceFloat, outCount * sizeof(float), cudaMemcpyDeviceToHost);
+          cudaFree(deviceFloat);
         }
-        confidenceSum += best;
-        if(pred == labels[offset + row]) correct++;
-      }
 
-      float accuracy = batch == 0 ? 0.0f : (float)correct / (float)batch;
-      float confidence = batch == 0 ? 0.0f : confidenceSum / (float)batch;
-      CORE::logInfo(__FILE__, __LINE__, "TRAIN iter=%zu/%zu loss=%f accuracy=%0.2f%% confidence=%0.2f%% offset=%zu lr=%g",
-        iter + 1,
-        iterations,
-        *(float *)this->L.getCpuPtr(),
-        accuracy * 100.0f,
-        confidence * 100.0f,
-        offset,
-        learningRate);
+        this->io->copyDeviceToHost(this->L);
+
+        uint8_t *labels = (uint8_t *)this->Y.getCpuPtr();
+        size_t correct = 0;
+        float confidenceSum = 0.0f;
+
+        for(size_t row = 0; row < batch; row++)
+        {
+          int pred = 0;
+          float best = prob[row * MODEL_OUTPUT_CLASSES];
+          for(int cls = 1; cls < MODEL_REAL_CLASSES; cls++)
+          {
+            float p = prob[row * MODEL_OUTPUT_CLASSES + cls];
+            if(p > best)
+            {
+              best = p;
+              pred = cls;
+            }
+          }
+          confidenceSum += best;
+          if(pred == labels[offset + row]) correct++;
+        }
+
+        float accuracy = batch == 0 ? 0.0f : (float)correct / (float)batch;
+        float confidence = batch == 0 ? 0.0f : confidenceSum / (float)batch;
+        CORE::logInfo(__FILE__, __LINE__, "TRAIN iter=%zu/%zu loss=%f accuracy=%0.2f%% confidence=%0.2f%% offset=%zu lr=%g",
+          iter + 1,
+          iterations,
+          *(float *)this->L.getCpuPtr(),
+          accuracy * 100.0f,
+          confidence * 100.0f,
+          offset,
+          learningRate);
+
+        free(prob);
+      }
 
       if(checkpointEvery > 0 && (iter + 1) % checkpointEvery == 0)
       {

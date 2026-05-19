@@ -164,6 +164,20 @@ static __global__ void matrixMulBiasGradBiasKernel(uint4 * __restrict__ DBIAS, c
   DBIAS[index] = dBias;
 }
 
+static __global__ void matrixMulBiasGradBiasTailKernel(__half * __restrict__ DBIAS, const __half * __restrict__ DOUT, int batch, int features, int tailStart, int tailN)
+{
+  int index = threadIdx.x + blockDim.x * blockIdx.x;
+  if(index >= tailN) return;
+
+  int col = tailStart + index;
+  float acc = 0.0f;
+  for(int row = 0; row < batch; row++)
+  {
+    acc += __half2float(DOUT[row * features + col]);
+  }
+  DBIAS[col] = __float2half_rn(acc);
+}
+
 OPERATOR::MatrixMulBias::MatrixMulBias(HANDLER::Workspace& workspace)
 {
   this->workspace = &workspace;
@@ -298,10 +312,28 @@ void OPERATOR::MatrixMulBias::backward()
   int features = matrixCols(this->dOut);
   int features8 = features / 8;
   int threads = 256;
-  int blocks = cuda::ceil_div(features8, threads);
-  matrixMulBiasGradBiasKernel<<<blocks, threads, 0, this->workspace->getStream()>>>(
-    (uint4 *)this->dBias->getGpuPtr(),
-    (const uint4 *)this->dOut->getGpuPtr(),
-    batch,
-    features8);
+
+  if(features8 > 0)
+  {
+    int blocks = cuda::ceil_div(features8, threads);
+    matrixMulBiasGradBiasKernel<<<blocks, threads, 0, this->workspace->getStream()>>>(
+      (uint4 *)this->dBias->getGpuPtr(),
+      (const uint4 *)this->dOut->getGpuPtr(),
+      batch,
+      features8);
+  }
+
+  int tailStart = features8 * 8;
+  if(tailStart < features)
+  {
+    int tailN = features - tailStart;
+    int blocks = cuda::ceil_div(tailN, threads);
+    matrixMulBiasGradBiasTailKernel<<<blocks, threads, 0, this->workspace->getStream()>>>(
+      (__half *)this->dBias->getGpuPtr(),
+      (const __half *)this->dOut->getGpuPtr(),
+      batch,
+      features,
+      tailStart,
+      tailN);
+  }
 }

@@ -72,6 +72,23 @@ __global__ void reluKernelBackward(uint4 * __restrict__ DIN, const uint4 * __res
   DIN[index] = dIn;
 }
 
+__global__ void reluKernelForwardTail(__half * __restrict__ OUT, const __half * __restrict__ IN, int N)
+{
+  int index = threadIdx.x + blockDim.x * blockIdx.x;
+  if(index >= N) return;
+
+  __half zero = __float2half_rn(0.0f);
+  OUT[index] = __hmax(IN[index], zero);
+}
+
+__global__ void reluKernelBackwardTail(__half * __restrict__ DIN, const __half * __restrict__ DOUT, const __half * __restrict__ IN, int N)
+{
+  int index = threadIdx.x + blockDim.x * blockIdx.x;
+  if(index >= N) return;
+
+  DIN[index] = __half2float(IN[index]) > 0.0f ? DOUT[index] : __float2half_rn(0.0f);
+}
+
 OPERATOR::Relu::Relu(HANDLER::Workspace& workspace)
 {
   this->workspace = &workspace;
@@ -124,8 +141,20 @@ void OPERATOR::Relu::forward()
   int N = this->in->getCount();
   int N8 = N / 8;
   int threads = N <= 256 ? 256 : N <= 512 ? 512 : 1024;
-  int blocks = cuda::ceil_div(N8, threads);
-  reluKernelForward<<<blocks, threads, 0, this->workspace->getStream()>>>((uint4 *)this->out->getGpuPtr(), (const uint4 *)this->in->getGpuPtr(), N8);
+
+  if(N8 > 0)
+  {
+    int blocks = cuda::ceil_div(N8, threads);
+    reluKernelForward<<<blocks, threads, 0, this->workspace->getStream()>>>((uint4 *)this->out->getGpuPtr(), (const uint4 *)this->in->getGpuPtr(), N8);
+  }
+
+  int tailStart = N8 * 8;
+  if(tailStart < N)
+  {
+    int tailN = N - tailStart;
+    int blocks = cuda::ceil_div(tailN, threads);
+    reluKernelForwardTail<<<blocks, threads, 0, this->workspace->getStream()>>>((__half *)this->out->getGpuPtr() + tailStart, (const __half *)this->in->getGpuPtr() + tailStart, tailN);
+  }
 }
 
 void OPERATOR::Relu::backward()
@@ -133,6 +162,18 @@ void OPERATOR::Relu::backward()
   int N = this->in->getCount();
   int N8 = N / 8;
   int threads = N <= 256 ? 256 : N <= 512 ? 512 : 1024;
-  int blocks = cuda::ceil_div(N8, threads);
-  reluKernelBackward<<<blocks, threads, 0, this->workspace->getStream()>>>((uint4 *)this->dIn->getGpuPtr(), (const uint4 *)this->dOut->getGpuPtr(), (const uint4 *)this->in->getGpuPtr(), N8);
+
+  if(N8 > 0)
+  {
+    int blocks = cuda::ceil_div(N8, threads);
+    reluKernelBackward<<<blocks, threads, 0, this->workspace->getStream()>>>((uint4 *)this->dIn->getGpuPtr(), (const uint4 *)this->dOut->getGpuPtr(), (const uint4 *)this->in->getGpuPtr(), N8);
+  }
+
+  int tailStart = N8 * 8;
+  if(tailStart < N)
+  {
+    int tailN = N - tailStart;
+    int blocks = cuda::ceil_div(tailN, threads);
+    reluKernelBackwardTail<<<blocks, threads, 0, this->workspace->getStream()>>>((__half *)this->dIn->getGpuPtr() + tailStart, (const __half *)this->dOut->getGpuPtr() + tailStart, (const __half *)this->in->getGpuPtr() + tailStart, tailN);
+  }
 }
